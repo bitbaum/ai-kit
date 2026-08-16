@@ -162,6 +162,51 @@ export function freeChain(prefix = "AI"): Provider[] {
   ];
 }
 
+/** What a model id tells us about who pays. */
+export type CostVerdict = "free" | "paid" | "unknown";
+
+/**
+ * Does this model id cost money?
+ *
+ * Exists because the same mistake was found in THREE separate apps on one day,
+ * each a fallback that silently began spending when the free tier ran dry:
+ *
+ *   anthropic/claude-sonnet-5                  a premium model as the fallback
+ *   google/gemini-2.0-flash-001                the paid twin of a `:free` id
+ *   meta-llama/llama-3.3-70b-instruct          reads free; bills at 1e-7/token,
+ *                                              and its `:free` sibling has been
+ *                                              retired from the catalogue
+ *
+ * The decidable rule is narrow and stated as such. A routed id (`vendor/model`,
+ * the OpenRouter shape) is FREE only with the `:free` suffix, and PAID without
+ * it — that suffix is the entire difference between free routing and a per-call
+ * charge for the same weights. A bare id (`llama-3.1-8b-instant`) says nothing:
+ * whether it costs depends on the account's tier at that vendor, which no string
+ * can answer, so it returns "unknown" rather than guessing.
+ *
+ * Guessing "free" there would be the dangerous direction — it is what let three
+ * of these through code review.
+ */
+export function modelCost(id: string): CostVerdict {
+  const model = id.trim();
+  if (!model) return "unknown";
+  // OpenRouter's auto-router across the free catalogue.
+  if (model === "openrouter/free") return "free";
+  if (!model.includes("/")) return "unknown";
+  return model.endsWith(":free") ? "free" : "paid";
+}
+
+/**
+ * Assert every model in a chain is free, for apps that must never bill.
+ *
+ * Returns the offending ids rather than throwing: the caller knows whether a
+ * paid link is a bug or a deliberate, opted-in upgrade, and a library that
+ * throws on the second case forces people to route around it.
+ */
+export function paidModelsIn(chain: Provider[]): string[] {
+  return chain.flatMap((p) => p.models).filter((m) => modelCost(m) === "paid");
+}
+
 /**
  * The day's total budget: every provider we hold a key for.
  *

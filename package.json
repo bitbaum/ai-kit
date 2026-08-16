@@ -1,6 +1,6 @@
 {
   "name": "ai-ration",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Stay on free LLM tiers: a multi-vendor fallback chain, rate-limit classification that tells the three kinds of 429 apart, and fair-share rationing of a shared daily pool across users.",
   "license": "MIT",
   "author": "Mao Nakamoto",
