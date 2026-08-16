@@ -1,0 +1,56 @@
+{
+  "name": "ai-ration",
+  "version": "0.1.0",
+  "description": "Stay on free LLM tiers: a multi-vendor fallback chain, rate-limit classification that tells the three kinds of 429 apart, and fair-share rationing of a shared daily pool across users.",
+  "license": "MIT",
+  "author": "Mao Nakamoto",
+  "homepage": "https://github.com/maonakamoto/ai-ration#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maonakamoto/ai-ration.git"
+  },
+  "bugs": {
+    "url": "https://github.com/maonakamoto/ai-ration/issues"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "free-tier",
+    "rate-limit",
+    "fallback",
+    "quota",
+    "rationing",
+    "fair-share",
+    "groq",
+    "openrouter"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.js",
+    "verify": "npm run build && npm test",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.8.2"
+  }
+}
