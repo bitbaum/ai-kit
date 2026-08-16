@@ -1,0 +1,39 @@
+# GOLDEN CI FLOOR — npm. See dotfiles/templates/ci/README.md.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push makes the older run obsolete — don't waste minutes finishing it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # SSOT: "verified" is defined ONCE, in package.json `verify`
+      # (= build + test), and run identically here and locally. Change the
+      # checks in one place, not two.
+      #
+      # `npm test` here also exercises the package's `exports` map, because the
+      # tests import it BY NAME rather than reaching into dist/ — so a broken
+      # exports/files map fails here rather than at a consumer's install.
+      - name: Verify
+        run: npm run verify
