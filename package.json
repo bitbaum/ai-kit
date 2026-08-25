@@ -47,6 +47,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.js",
+    "check:catalog": "npm run build && node scripts/check-catalog.mjs",
     "verify": "npm run lint && npm run typecheck && npm run build && npm test",
     "prepare": "npm run build"
   },
