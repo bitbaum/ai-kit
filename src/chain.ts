@@ -59,6 +59,23 @@ export type Provider = {
   modelsEnv?: string;
   /** Env var overriding `dailyTokens` at call time. */
   dailyTokensEnv?: string;
+  /**
+   * Does this vendor use ROUTED ids, where `vendor/model` names weights it
+   * resells and a `:free` suffix is the difference between free routing and a
+   * per-call charge? True for OpenRouter.
+   *
+   * It matters because the same STRING means different things at different
+   * vendors. `openai/gpt-oss-20b` bills at OpenRouter (no `:free`), while at
+   * Groq it is simply that vendor's name for a model whose cost depends on the
+   * account tier. Deciding cost from the id alone was safe only while
+   * non-routed vendors used bare ids like `llama-3.1-8b-instant`; Groq now
+   * ships vendor-prefixed ids, so the shape no longer identifies the vendor.
+   *
+   * Defaults to false: claiming an id is routed when it is not would report a
+   * free model as paid, and the reverse — assuming free — is the direction
+   * this module exists to refuse.
+   */
+  routed?: boolean;
 };
 
 export type Env = Record<string, string | undefined>;
@@ -135,7 +152,14 @@ export function freeChain(prefix = "AI"): Provider[] {
       id: "groq",
       baseUrl: "https://api.groq.com/openai/v1",
       keyEnv: "GROQ_API_KEY",
-      models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+      // Re-probed 2026-08-25 against the live catalog. The previous pins,
+      // `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`, were BOTH gone —
+      // so this "fallback chain" led with a fully dead vendor and every caller
+      // paid two 404s before reaching OpenRouter. FleetCrown, whose direct
+      // (non-chain) calls used the same id and had no fallback at all, was
+      // silently down for eight days. Both ids below answered with a correct
+      // native tool_call when probed, which is the bar this list is held to.
+      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
       // Not a guess: Groq's own TPD refusal names it — "on tokens per day
       // (TPD): Limit 100000". Org-wide, so every feature sharing the key draws
       // from this same pool.
@@ -145,12 +169,17 @@ export function freeChain(prefix = "AI"): Provider[] {
       id: "openrouter",
       baseUrl: "https://openrouter.ai/api/v1",
       keyEnv: "OPENROUTER_API_KEY",
+      // Routed ids: `:free` is the whole difference between free routing and a
+      // per-call charge for the same weights. See Provider.routed.
+      routed: true,
+      // Re-checked 2026-08-25 against the 419-model live catalog. Two entries
+      // were retired and are removed here: `openai/gpt-oss-20b:free` — which
+      // was FIRST, so the preferred fallback 404'd on every call — and
+      // `nvidia/nemotron-3-nano-30b-a3b:free`. The five below were present.
       models: [
-        "openai/gpt-oss-20b:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3.5-lightning:free",
         "google/gemma-4-26b-a4b-it:free",
-        "nvidia/nemotron-3-nano-30b-a3b:free",
         "cohere/north-mini-code:free",
         "openrouter/free",
       ],
@@ -186,6 +215,12 @@ export type CostVerdict = "free" | "paid" | "unknown";
  *
  * Guessing "free" there would be the dangerous direction — it is what let three
  * of these through code review.
+ *
+ * IMPORTANT: this reads the id as a ROUTED (OpenRouter-shape) id, because that
+ * is the only shape where the string decides. It is therefore wrong to apply to
+ * an id from a vendor that merely happens to prefix its own models — Groq's
+ * `openai/gpt-oss-120b` is not a routed OpenAI id, and this function would call
+ * it paid. When you know the provider, use `modelCostAt`; `paidModelsIn` does.
  */
 export function modelCost(id: string): CostVerdict {
   const model = id.trim();
@@ -197,14 +232,32 @@ export function modelCost(id: string): CostVerdict {
 }
 
 /**
+ * Cost of a model AT a specific provider — the honest signature, because the
+ * same id answers differently at different vendors (see `Provider.routed`).
+ *
+ * At a non-routed vendor the id carries no cost information at all: what you
+ * pay is the account's tier there, which no string can report. That is the
+ * same "unknown" a bare id has always returned, now correct for vendor-prefixed
+ * ids too.
+ */
+export function modelCostAt(provider: Provider, model: string): CostVerdict {
+  return provider.routed ? modelCost(model) : "unknown";
+}
+
+/**
  * Assert every model in a chain is free, for apps that must never bill.
+ *
+ * Judges each id AT ITS PROVIDER. Flagging Groq's `openai/gpt-oss-120b` as paid
+ * because it contains a slash would be a false alarm that pressures someone
+ * into "fixing" a working free model — and a guard that cries wolf gets
+ * disabled, taking the three real cases it does catch with it.
  *
  * Returns the offending ids rather than throwing: the caller knows whether a
  * paid link is a bug or a deliberate, opted-in upgrade, and a library that
  * throws on the second case forces people to route around it.
  */
 export function paidModelsIn(chain: Provider[]): string[] {
-  return chain.flatMap((p) => p.models).filter((m) => modelCost(m) === "paid");
+  return chain.flatMap((p) => p.models.filter((m) => modelCostAt(p, m) === "paid"));
 }
 
 /**
