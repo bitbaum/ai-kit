@@ -28,26 +28,45 @@ test('the package exports its public surface through the exports map', () => {
 });
 
 /**
- * The merge is the feature, so it needs a test.
+ * The merge is the feature, so it needs a test — but the feature is ONE INSTALL,
+ * not one import.
  *
- * `ai-kit` exists so that adding AI to an app is ONE install rather than four
- * separate decisions — AOZ made one of those decisions (ai-forms), skipped the
- * other two, and was taken down by the one it skipped. If the form-filling
- * re-export silently stops resolving, the package quietly becomes the old
- * ai-ration again under a friendlier name, and nothing else here would notice.
+ * `ai-kit` exists so that adding AI to an app is a single decision rather than
+ * four: AOZ made one of those decisions (ai-forms), skipped the other two, and
+ * was taken down by one it skipped. Everything below still ships from this one
+ * package at one version. What changed is WHERE from.
  */
-test('form filling is reachable from the root, so one install covers it', async () => {
-  const pkg = await import('ai-kit');
+test('form filling is reachable from the package, so one install covers it', async () => {
+  const forms = await import('ai-kit/forms');
   for (const name of ['runFormAssist', 'defineFields', 'mergeValues', 'sanitizeValues']) {
-    assert.equal(typeof pkg[name], 'function', `missing re-export: ${name}`);
+    assert.equal(typeof forms[name], 'function', `missing export: ${name}`);
   }
 });
 
-test('the model layer and the form layer coexist without shadowing', async () => {
+/**
+ * ...and it must NOT be reachable from the root. This is a regression test with
+ * a scar behind it.
+ *
+ * For one release the root re-exported forms, so `import { freeChain } from
+ * 'ai-kit'` dragged `ai-forms` in behind it. That package is ESM-only, so the
+ * first adopting app's Jest run — which executes CJS — died on `Unexpected token
+ * 'export'` inside a module it had never asked for. The remedy would have been a
+ * `transformIgnorePatterns` entry in that app, then the next, then every app
+ * after: one class of breakage, paid per repo, forever.
+ *
+ * So the absence is the contract. A convenience re-export added back at the root
+ * would look harmless in review and break the next consumer the same way.
+ */
+test('the root does NOT drag the form layer in behind the chain', async () => {
   const pkg = await import('ai-kit');
-  // One from each half. A collision would drop one silently at build time.
-  assert.equal(typeof pkg.freeChain, 'function');
-  assert.equal(typeof pkg.runFormAssist, 'function');
+  assert.equal(typeof pkg.freeChain, 'function', 'the chain belongs at the root');
+  for (const name of ['runFormAssist', 'defineFields']) {
+    assert.equal(
+      name in pkg,
+      false,
+      `${name} is re-exported from the root again — a chain-only consumer now loads ai-forms`,
+    );
+  }
 });
 
 test('./forms resolves through the exports map', async () => {

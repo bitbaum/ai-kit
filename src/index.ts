@@ -81,6 +81,24 @@ export {
   utcDayKey,
 } from "./fair-share.js";
 
-// Form filling. Re-exported so that adding AI to an app is one install; the
-// package itself stays independent and separately useful.
-export * from "./forms.js";
+// Form filling lives at `ai-kit/forms`, NOT here.
+//
+// It was re-exported from this root for one release, so that "adding AI" was a
+// single import as well as a single install. The first app to adopt the merged
+// package showed what that costs: `ai-forms` is ESM-only, so pulling it in from
+// this root made every consumer of the CHAIN load the forms package too — and
+// the app's Jest run, which executes CJS, died on `Unexpected token 'export'`
+// inside a module it never asked for. The fix would have been a
+// `transformIgnorePatterns` entry in that app, and in the next one, and in
+// every app thereafter: one class of breakage, paid per repo, forever.
+//
+// One install is still the promise, and the exports map already keeps it:
+//
+//     import { freeChain } from "ai-kit";          // the chain
+//     import { defineFields } from "ai-kit/forms"; // form filling
+//     import { useAssist } from "ai-kit/react";    // the React hook
+//
+// Same dependency, same version, nothing extra to install — a consumer just
+// stops paying for the half it does not use. That is what subpath exports are
+// for, and collapsing them into the root threw the benefit away.
+
