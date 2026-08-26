@@ -119,7 +119,7 @@ is room.
 ### Filling forms — from prose, then by talking to it
 
 ```ts
-import { runFormAssist } from 'ai-kit';
+import { runFormAssist } from 'ai-kit/forms';
 import { useAiForm } from 'ai-kit/react';
 import { createFormAssistHandler } from 'ai-kit/server';
 ```
@@ -128,6 +128,14 @@ Re-exported from [`ai-forms`](https://github.com/maonakamoto/ai-forms), which
 stays its own package — it works, four apps run it, and it is useful well outside
 this fleet. Swallowing it would have broken those four for the sake of a filing
 system.
+
+**Note the subpath.** Form filling is at `ai-kit/forms`, not at the root. For one
+release it was both, and the first app to adopt the merged package paid for it:
+`ai-forms` is ESM-only, so importing the *chain* from the root dragged the forms
+package in behind it and the app's Jest run — which executes CJS — died inside a
+module it never asked for. One install is still the whole promise; the exports
+map is what keeps it, while letting a server that only wants a provider chain
+stop paying for a form library.
 
 React lives on its own subpath and is an **optional** peer, so importing `ai-kit`
 on a server never pulls in a UI library.
