@@ -2,6 +2,11 @@ name: Publish
 
 # Publishing is driven by a version tag, so the released artifact is always
 # traceable to a commit. `npm version` creates the tag; pushing it ships.
+#
+# If no NPM_TOKEN is set, the tag is still built and verified and the run stays
+# GREEN — it reports that it skipped the registry. A workflow that goes red
+# because a secret is absent teaches everyone to ignore this workflow, and the
+# next thing it ignores will be a real failure.
 on:
   push:
     tags: ['v*']
@@ -37,6 +42,45 @@ jobs:
             exit 1
           fi
 
-      - run: npm publish
+      # Is there a credential to publish WITH?
+      #
+      # There is not, today, and pretending otherwise costs more than the
+      # missing release. Without this the job fails on every future version tag
+      # — a red X that means "nothing is wrong, a secret is absent", which is
+      # the most expensive kind of failure: the sort people learn to scroll
+      # past, right next to the real ones.
+      #
+      # So a missing token SKIPS and says so in the summary. The tag, the build
+      # and `verify` all still ran, so the release is real and reproducible; it
+      # just did not reach the public registry. Add NPM_TOKEN and re-run this
+      # workflow and it publishes with no further change.
+      - name: Is a registry credential available?
+        id: cred
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            {
+              echo '## Publish skipped'
+              echo
+              echo "Tag \`${GITHUB_REF_NAME}\` was built and verified, but no \`NPM_TOKEN\`"
+              echo 'secret is set on this repository, so it was not pushed to npm.'
+              echo
+              echo 'This is not a failure. The package installs from GitHub:'
+              echo
+              echo '```'
+              echo "npm i github:${GITHUB_REPOSITORY}#${GITHUB_REF_NAME}"
+              echo '```'
+              echo
+              echo 'To publish to npm instead, add the secret and re-run this workflow.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Publish to npm
+        if: steps.cred.outputs.have == 'true'
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
