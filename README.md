@@ -1,129 +1,172 @@
-# ai-ration
+# ai-kit
 
-Keep an LLM app on free tiers, and share what is free fairly.
-
-Three small, pure modules. No HTTP client, no SDK, no framework — every app
-already has its own calling conventions, and replacing those is a rewrite rather
-than an adoption. **This package supplies the decisions; you keep the fetch.**
+**The AI layer of an app, in one install.** Which model to call, what to do when
+the vendor deletes it, what to do when you're going too fast, how to share a free
+tier fairly between users, and how to fill a form from plain language.
 
 ```bash
-npm install github:maonakamoto/ai-ration#v0.1.0
+npm install ai-kit
 ```
 
-## Why
+---
 
-Free LLM tiers fail in three specific ways, and each one has been mistaken for an
-application bug at least once:
+## Why this is one package and not four
 
-| Failure | What it looks like | What actually fixes it |
-|---|---|---|
-| A pinned free model is retired | "the assistant is broken" | a chain, not a pin |
-| The vendor's daily budget is gone | a 429 that retrying never clears | a **different vendor** |
-| One eager user spends the day's tokens by 10am | everyone else meets a wall | rationing |
+Adding an AI feature looks like one decision and is actually four. Get any of
+them wrong and the app fails **identically** from the outside: the assistant is
+broken, and the error usually blames the wrong thing.
 
-The third is the one that costs you users, because the person who hits the wall
-is usually the one trying the product for the first time.
+On 2026-08-26 that stopped being hypothetical. Groq retired its entire
+`llama-3.x` family. Every app in this fleet that had picked a model by hand went
+down at the same moment — five repos, three of them serving live traffic — and
+the one app that had adopted the fallback chain was unaffected. One of the broken
+ones reported *"AI assistant not configured, please set GROQ_API_KEY"* on a
+deployment whose key was perfectly valid, so the first hour of the investigation
+went into checking a credential that was never the problem.
 
-## `chain` — a fallback list across vendors
+That app had already adopted the form-filling half. It hand-rolled the other
+half, because that was a second decision and nobody made it.
+
+So the four decisions ship together now. Adding AI is one install.
+
+> **Renamed from `ai-ration` in v0.3.0.** The old name described one of its five
+> modules and hid the other four, and the person deciding whether to install it
+> could not tell what it did. An unreadable name is a cost paid at every install
+> decision — and this package had a single adopter while five repos that skipped
+> it were taken down together by exactly the failure it prevents.
+
+---
+
+## What's in it
+
+### Which model — a list, never a pin
 
 ```ts
-import { freeChain, usableChain, chainFrom } from 'ai-ration';
+import { freeChain, usableChain, chainFrom } from 'ai-kit';
 
-const providers = freeChain('MYAPP');            // groq → openrouter, free models
-const links = usableChain(providers, process.env); // drops vendors with no key
+const providers = freeChain('MYAPP');               // groq → openrouter
+const links = usableChain(providers, process.env);   // drops vendors with no key
+
 for (const { provider, model } of chainFrom(process.env.MYAPP_MODEL, links)) {
   // POST `${provider.baseUrl}/chat/completions` with `model`
   // on failure, continue — that is the whole point
 }
 ```
 
-Both properties are load-bearing. Falling back to a **smaller model at the same
-vendor** buys nothing: it draws on the same org-wide daily budget, so when the
-day runs dry every link in that "fallback" is already dead. Only a different
-vendor has a different meter.
+Falling back to a **smaller model at the same vendor buys nothing**: it draws on
+the same org-wide daily budget, so when the day runs dry every link in that
+"fallback" is already dead. Only a different vendor has a different meter.
 
-**Probe before you pin.** Of nine free models probed live for the default chain,
-**five** answered only via a text tool protocol, not native `tool_calls`. A
-native-only client would have silently lost most of the chain. The shipped list
-is evidence from one day, not a constant — free catalogues rot, so re-probe.
+**Probe before you pin.** Of nine free models probed live, **five** answered only
+via a text tool protocol, not native `tool_calls`. A native-only client would
+have silently lost most of the chain.
 
-## `limits` — the three kinds of 429
-
-They share a status code, a `type`, and a `code`. Only the body tells them apart,
-and they need **opposite** responses:
+### Still there? — catch a retirement before a user does
 
 ```ts
-import { classifyRateLimit, rateLimitMessage } from 'ai-ration';
+import { freeChain, checkCatalog, hasRot, catalogReport } from 'ai-kit';
+
+const verdicts = await checkCatalog(freeChain('MYAPP'));
+if (hasRot(verdicts)) console.warn(catalogReport(verdicts));
+```
+
+One `GET /models` per vendor. **Zero tokens**, which is what makes it
+schedulable — and "somebody is supposed to remember" is precisely what failed.
+
+Three states, not two: a catalogue that could not be read reports **unchecked**,
+never *gone*. Treating "I could not look" as "nothing is there" marks every model
+retired and invents an outage someone then acts on.
+
+> This fleet runs it daily across every repo from
+> [`dotfiles/scripts/ci/model-pin-audit.mjs`](https://github.com/maonakamoto/dotfiles).
+
+### Too fast? — the three kinds of 429
+
+```ts
+import { classifyRateLimit, rateLimitMessage } from 'ai-kit';
 
 classifyRateLimit(body); // 'capacity' | 'size' | 'daily'
 ```
 
-- **capacity** — the per-minute window is spent. Wait, or step down.
-- **size** — one request exceeds the whole window. Waiting *never* helps, and
-  stepping down makes it strictly worse (the cheaper model has a smaller
-  ceiling). Only a smaller prompt helps.
-- **daily** — the day's budget is gone, org-wide. Every response that works for
-  capacity is actively harmful: a step-down draws on the same exhausted budget,
-  and a 25-second wait is nothing against a reset measured in tens of minutes.
+They share a status code, a `type` and a `code`. Only the body tells them apart,
+and they need **opposite** responses: retry shortly, shrink the request, or give
+up on this vendor until tomorrow.
 
-`rateLimitMessage(body)` returns a clause you embed in your own framing. It says
-whether waiting can help and when, because "try again shortly" on an exhausted
-day invites exactly the retry that is guaranteed to fail for the next hour.
+`retryAfterSeconds` is present only for the refusal a wait actually fixes.
+Telling someone whose daily quota is gone to try again in 20 minutes is a lie.
 
-An unrecognised body degrades to `capacity` — the safe guess, since its response
-is harmless when wrong.
-
-## `fair-share` — divide a fixed daily pool
-
-Pure policy: no database, no clock, no provider. You own *"what has this user
-spent today"*; it owns *"may they spend more"*.
+### Who gets it — fair shares of a free tier
 
 ```ts
-import { fairShare, utcDayElapsed } from 'ai-ration';
-
-const decision = fairShare({
-  dayCapacityTokens: dayCapacityTokens(providers, process.env),
-  activeUsers,        // distinct users who drew TODAY, including this one
-  userSpentTokens,
-  costTokens: ESTIMATED_TURN,
-  dayElapsed: utcDayElapsed(new Date()),
-});
-// decision.reason: 'ok' | 'paced' | 'share-spent' | 'no-capacity'
+import { fairShare, utcDayElapsed } from 'ai-kit';
 ```
 
-Two ideas, both needed:
+A free tier grants roughly 100k tokens **per day for an entire org**, and one
+measured tool-calling turn cost ~16k — about six turns a day. Divided badly, the
+first enthusiastic user spends it before lunch and everyone after them meets a
+wall, including the person trying the product for the first time, who concludes
+it is broken and never comes back.
 
-1. **Share** = capacity ÷ users *active today*. Recomputed per request, so a new
-   user is counted the moment they arrive. Counting dormant accounts would ration
-   a quiet day down to nothing.
-2. **Pacing** — a share is a whole-day allowance, and the day is consumed in
-   order. Without pacing, three users legitimately spend their full shares by
-   09:00 and the fourth finds nothing left. So the allowance unlocks gradually.
+Shares are `capacity / active users`, recomputed per request, where *active*
+means users who actually drew today — one user on a quiet day correctly gets
+everything. The allowance unlocks gradually through the day, with a **one-turn
+floor** so nobody's first question of the morning is refused.
 
-Plus a **one-turn floor**: the allowance never sits below the cost of a single
-turn, so nobody's first question of the morning is refused. Without it, pure
-pacing tells a first-time user to come back in three hours — indistinguishable
-from broken.
-
-`retryAfterSeconds` is present **only** for `paced`, the one refusal a wait
-actually fixes. Telling someone whose share is spent to try again in 20 minutes
-is the same lie as "try again shortly" on an exhausted daily quota.
-
-No clawback: a user who spent under a larger share when they were alone is not
-punished when a second user appears — their allowance simply stops growing.
-
-## Estimating a turn
-
-Whatever you pass as `costTokens` must err **high**. Under-estimating admits
+Whatever you pass as `costTokens` must err **high**: under-estimating admits
 turns the pool cannot cover, draining the day while the gate still believes there
-is room. One measured turn on a free model — a single tool call — cost **~16k
-tokens**; an estimate of 10k had been documented as "deliberately on the high
-side" and was 37% below it. Measure, then replace the estimate with the mean.
+is room.
+
+### Filling forms — from prose, then by talking to it
+
+```ts
+import { runFormAssist } from 'ai-kit';
+import { useAiForm } from 'ai-kit/react';
+import { createFormAssistHandler } from 'ai-kit/server';
+```
+
+Re-exported from [`ai-forms`](https://github.com/maonakamoto/ai-forms), which
+stays its own package — it works, four apps run it, and it is useful well outside
+this fleet. Swallowing it would have broken those four for the sake of a filing
+system.
+
+React lives on its own subpath and is an **optional** peer, so importing `ai-kit`
+on a server never pulls in a UI library.
+
+---
+
+## What it deliberately does not ship
+
+**An HTTP client.** Every app has its own calling conventions, retries and
+logging, and replacing those is a rewrite rather than an adoption. This supplies
+the decisions; you keep the fetch.
+
+That rule is under review, and honestly. `ai-forms` is the most-adopted package
+in this fleet and it is the one that broke the rule, by shipping a route factory
+and a React hook. A package that hands you a working route gets installed; one
+that hands you advice about routes does not.
+
+**Model values.** Which ids are free, which are billed, and which your account
+may use are properties of *your* deployment. Centralise the rule, assert it
+locally.
+
+---
+
+## Related
+
+| Package | For |
+|---|---|
+| [`ai-forms`](https://github.com/maonakamoto/ai-forms) | Form filling on its own, without the model layer |
+| [`threadkit`](https://github.com/maonakamoto/threadkit) | Messages between people, and who may see them |
+| [`limitkit`](https://github.com/maonakamoto/limitkit) | Stopping someone doing something too often |
+
+`threadkit` and `limitkit` are **not** merged in here, on purpose: neither has
+anything to do with AI. An app that throttles its login form should not install a
+model catalogue to do it.
 
 ## Development
 
 ```bash
-npm run verify   # build + test
+npm run verify   # lint + typecheck + build + test
 ```
 
 MIT.

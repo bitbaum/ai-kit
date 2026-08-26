@@ -1,25 +1,25 @@
 {
-  "name": "ai-ration",
-  "version": "0.2.1",
-  "description": "Stay on free LLM tiers: a multi-vendor fallback chain, rate-limit classification that tells the three kinds of 429 apart, and fair-share rationing of a shared daily pool across users.",
+  "name": "ai-kit",
+  "version": "0.3.0",
+  "description": "One install for the AI layer of an app: which model to call and what to do when the vendor retires it, how to read the three kinds of 429, a fair daily budget across users, and headless AI form filling.",
   "license": "MIT",
   "author": "Mao Nakamoto",
-  "homepage": "https://github.com/maonakamoto/ai-ration#readme",
+  "homepage": "https://github.com/maonakamoto/ai-kit#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/maonakamoto/ai-ration.git"
+    "url": "git+https://github.com/maonakamoto/ai-kit.git"
   },
   "bugs": {
-    "url": "https://github.com/maonakamoto/ai-ration/issues"
+    "url": "https://github.com/maonakamoto/ai-kit/issues"
   },
   "keywords": [
     "ai",
     "llm",
+    "form-fill",
+    "fallback",
     "free-tier",
     "rate-limit",
-    "fallback",
     "quota",
-    "rationing",
     "fair-share",
     "groq",
     "openrouter"
@@ -40,6 +40,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./forms": {
+      "types": "./dist/forms.d.ts",
+      "default": "./dist/forms.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
     }
   },
   "scripts": {
@@ -58,5 +70,16 @@
     "globals": "^15.15.0",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.67.0"
+  },
+  "dependencies": {
+    "ai-forms": "^0.1.2"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

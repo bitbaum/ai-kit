@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { classifyRateLimit, retryAfterSeconds, humanizeWait, rateLimitMessage } from 'ai-ration';
+import { classifyRateLimit, retryAfterSeconds, humanizeWait, rateLimitMessage } from 'ai-kit';
 
 const CAPACITY =
   'Rate limit reached for model `llama-3.3-70b-versatile` on tokens per minute (TPM): Limit 12000, Used 11800, Requested 400. Please try again in 3.6s.';

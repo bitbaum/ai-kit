@@ -12,7 +12,7 @@ import {
   dayCapacityTokens,
   usableChain,
   chainFrom,
-} from 'ai-ration';
+} from 'ai-kit';
 
 const CHAIN = freeChain('LOKI');
 
