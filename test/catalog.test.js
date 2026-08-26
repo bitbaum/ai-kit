@@ -15,7 +15,7 @@ import {
   deadProviders,
   catalogReport,
   withEnvPrefix,
-} from 'ai-ration';
+} from 'ai-kit';
 
 const provider = (id, models, keyEnv) =>
   withEnvPrefix('T', { id, baseUrl: `https://${id}.test/v1`, keyEnv, models, dailyTokens: 1000 });

@@ -1,0 +1,42 @@
+name: Publish
+
+# Publishing is driven by a version tag, so the released artifact is always
+# traceable to a commit. `npm version` creates the tag; pushing it ships.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance — proves on the registry that this tarball
+      # was built by this workflow from this commit.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci --ignore-scripts
+
+      # Never publish something that would not have passed CI.
+      - run: npm run verify
+
+      # Refuse to publish a tag whose version does not match package.json,
+      # rather than silently shipping the wrong number.
+      - name: Check tag matches package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$pkg" ]; then
+            echo "Tag v$tag does not match package.json version $pkg" >&2
+            exit 1
+          fi
+
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

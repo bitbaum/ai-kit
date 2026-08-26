@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { modelCost, modelCostAt, paidModelsIn, freeChain } from 'ai-ration';
+import { modelCost, modelCostAt, paidModelsIn, freeChain } from 'ai-kit';
 
 test('the three ids that were actually billing are all caught', () => {
   assert.equal(modelCost('anthropic/claude-sonnet-5'), 'paid');
