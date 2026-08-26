@@ -1,6 +1,6 @@
 {
   "name": "ai-kit",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "One install for the AI layer of an app: which model to call and what to do when the vendor retires it, how to read the three kinds of 429, a fair daily budget across users, and headless AI form filling.",
   "license": "MIT",
   "author": "Mao Nakamoto",
