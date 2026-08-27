@@ -78,7 +78,7 @@ never *gone*. Treating "I could not look" as "nothing is there" marks every mode
 retired and invents an outage someone then acts on.
 
 > This fleet runs it daily across every repo from
-> [`dotfiles/scripts/ci/model-pin-audit.mjs`](https://github.com/maonakamoto/dotfiles).
+> [`dotfiles/scripts/ci/model-pin-audit.mjs`](https://github.com/catomean/dotfiles).
 
 ### Too fast? — the three kinds of 429
 
@@ -124,7 +124,7 @@ import { useAiForm } from 'ai-kit/react';
 import { createFormAssistHandler } from 'ai-kit/server';
 ```
 
-Re-exported from [`ai-forms`](https://github.com/maonakamoto/ai-forms), which
+Re-exported from [`ai-forms`](https://github.com/catomean/ai-forms), which
 stays its own package — it works, four apps run it, and it is useful well outside
 this fleet. Swallowing it would have broken those four for the sake of a filing
 system.
@@ -163,9 +163,9 @@ locally.
 
 | Package | For |
 |---|---|
-| [`ai-forms`](https://github.com/maonakamoto/ai-forms) | Form filling on its own, without the model layer |
-| [`threadkit`](https://github.com/maonakamoto/threadkit) | Messages between people, and who may see them |
-| [`limitkit`](https://github.com/maonakamoto/limitkit) | Stopping someone doing something too often |
+| [`ai-forms`](https://github.com/catomean/ai-forms) | Form filling on its own, without the model layer |
+| [`threadkit`](https://github.com/catomean/threadkit) | Messages between people, and who may see them |
+| [`limitkit`](https://github.com/catomean/limitkit) | Stopping someone doing something too often |
 
 `threadkit` and `limitkit` are **not** merged in here, on purpose: neither has
 anything to do with AI. An app that throttles its login form should not install a

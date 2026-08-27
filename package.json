@@ -4,13 +4,13 @@
   "description": "One install for the AI layer of an app: which model to call and what to do when the vendor retires it, how to read the three kinds of 429, a fair daily budget across users, and headless AI form filling.",
   "license": "MIT",
   "author": "Mao Nakamoto",
-  "homepage": "https://github.com/maonakamoto/ai-kit#readme",
+  "homepage": "https://github.com/catomean/ai-kit#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/maonakamoto/ai-kit.git"
+    "url": "git+https://github.com/catomean/ai-kit.git"
   },
   "bugs": {
-    "url": "https://github.com/maonakamoto/ai-kit/issues"
+    "url": "https://github.com/catomean/ai-kit/issues"
   },
   "keywords": [
     "ai",
