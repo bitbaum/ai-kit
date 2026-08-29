@@ -3,10 +3,10 @@
  *
  * WHAT IT IS FOR
  * --------------
- * An app that wants an AI feature needs four unrelated-looking decisions to go
- * right, and getting any one wrong looks identical from the outside: the
- * assistant is broken. This package holds all four, so adding AI is one
- * decision instead of four.
+ * An app that wants an AI feature needs several unrelated-looking decisions to
+ * go right, and getting any one wrong looks identical from the outside: the
+ * assistant is broken. This package holds all of them, so adding AI is one
+ * decision instead of many.
  *
  *   which model  — a fallback list ACROSS VENDORS, because a single pinned free
  *                  model is a scheduled outage, and a smaller model at the same
@@ -14,6 +14,10 @@
  *   still there? — has the vendor retired an id we still ask for? The list is
  *                  itself a list of pins, so it rots too. Zero tokens, so it can
  *                  run on a schedule instead of being remembered.
+ *   walk it      — a chain nobody walks is a list, not a fallback. `tryChain`
+ *                  tries each link and stops at the first success; a
+ *                  `HealthTracker` records whether the WHOLE chain came back
+ *                  empty, so a health route can say so before a user does.
  *   too fast?    — tell the three kinds of 429 apart. They share a status code
  *                  and need opposite responses; only the body distinguishes them.
  *   who gets it  — divide a fixed daily pool across active users, so the person
@@ -32,9 +36,11 @@
  *
  * STILL NOT INCLUDED: an HTTP client. Every app has its own calling conventions,
  * retries and logging, and replacing those is a rewrite rather than an adoption.
- * This supplies the decisions; the caller keeps the fetch. That rule is under
- * review — `ai-forms`, the most-adopted package in this fleet, is the one that
- * broke it by shipping a route factory and a hook.
+ * This supplies the decisions; the caller keeps the fetch — `tryChain` is an
+ * orchestrator, not a client: the caller's own `attempt` function makes the
+ * actual request. That rule is under review — `ai-forms`, the most-adopted
+ * package in this fleet, is the one that broke it by shipping a route factory
+ * and a hook.
  */
 
 export {
@@ -61,6 +67,21 @@ export {
   deadProviders,
   catalogReport,
 } from "./catalog.js";
+
+export {
+  type ChainAttemptFailure,
+  type TryChainOptions,
+  ChainExhaustedError,
+  tryChain,
+} from "./attempt.js";
+
+export {
+  type HealthStatus,
+  type Health,
+  type HealthTrackerOptions,
+  type HealthTracker,
+  createHealthTracker,
+} from "./health.js";
 
 export {
   type RateLimitKind,

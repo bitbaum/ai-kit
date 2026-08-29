@@ -1,22 +1,24 @@
 {
   "name": "ai-kit",
-  "version": "0.4.0",
-  "description": "One install for the AI layer of an app: which model to call and what to do when the vendor retires it, how to read the three kinds of 429, a fair daily budget across users, and headless AI form filling.",
+  "version": "0.5.0",
+  "description": "One install for the AI layer of an app: which model to call, what to do when the vendor retires it, how to walk the fallback chain and know when none of it worked, how to read the three kinds of 429, a fair daily budget across users, and headless AI form filling.",
   "license": "MIT",
   "author": "Mao Nakamoto",
-  "homepage": "https://github.com/catomean/ai-kit#readme",
+  "homepage": "https://github.com/bitbaum/ai-kit#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/catomean/ai-kit.git"
+    "url": "git+https://github.com/bitbaum/ai-kit.git"
   },
   "bugs": {
-    "url": "https://github.com/catomean/ai-kit/issues"
+    "url": "https://github.com/bitbaum/ai-kit/issues"
   },
   "keywords": [
     "ai",
     "llm",
     "form-fill",
     "fallback",
+    "failover",
+    "health-check",
     "free-tier",
     "rate-limit",
     "quota",

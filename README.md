@@ -1,8 +1,9 @@
 # ai-kit
 
 **The AI layer of an app, in one install.** Which model to call, what to do when
-the vendor deletes it, what to do when you're going too fast, how to share a free
-tier fairly between users, and how to fill a form from plain language.
+the vendor deletes it, how to walk the fallback and know when none of it worked,
+what to do when you're going too fast, how to share a free tier fairly between
+users, and how to fill a form from plain language.
 
 ```bash
 npm install ai-kit
@@ -46,11 +47,7 @@ import { freeChain, usableChain, chainFrom } from 'ai-kit';
 
 const providers = freeChain('MYAPP');               // groq → openrouter
 const links = usableChain(providers, process.env);   // drops vendors with no key
-
-for (const { provider, model } of chainFrom(process.env.MYAPP_MODEL, links)) {
-  // POST `${provider.baseUrl}/chat/completions` with `model`
-  // on failure, continue — that is the whole point
-}
+const chain = chainFrom(process.env.MYAPP_MODEL, links);
 ```
 
 Falling back to a **smaller model at the same vendor buys nothing**: it draws on
@@ -60,6 +57,45 @@ the same org-wide daily budget, so when the day runs dry every link in that
 **Probe before you pin.** Of nine free models probed live, **five** answered only
 via a text tool protocol, not native `tool_calls`. A native-only client would
 have silently lost most of the chain.
+
+### Is it up? — walk the chain, and know when none of it worked
+
+A chain nobody walks is a list, not a fallback. This was found sitting unused
+next to a single-shot caller in an app this package's `freeChain` had already
+saved from a retired model — the list existed, and nothing tried link two.
+
+```ts
+import { tryChain, createHealthTracker } from 'ai-kit';
+
+const llmHealth = createHealthTracker(); // one per process; see below
+
+const { text } = await tryChain(chain, {
+  health: llmHealth,
+  attempt: async ({ provider, model }) => {
+    // POST `${provider.baseUrl}/chat/completions` with `model` — your own
+    // fetch, your own retries. Throw to demote to the next link.
+    return callVendor(provider, model);
+  },
+});
+```
+
+No HTTP client here either — `attempt` makes the real request; `tryChain` only
+decides which link goes next and throws `ChainExhaustedError` (naming every
+link's failure, not just the last) when none of them work.
+
+`createHealthTracker()` is a factory, not a global: a single-process app gets
+the old "shared state everywhere" behaviour for free by making exactly one and
+exporting it —
+
+```ts
+// lib/llm-health.ts
+export const llmHealth = createHealthTracker();
+```
+
+— and a health route reports `llmHealth.getHealth()` instead of only ever
+checking the database. That gap is not hypothetical: an app's `/health` reported
+"healthy" while its only configured key was returning 401 and every chat route
+was answering a friendly, silent, hardcoded apology. HTTP 200 is not evidence.
 
 ### Still there? — catch a retirement before a user does
 
@@ -78,7 +114,7 @@ never *gone*. Treating "I could not look" as "nothing is there" marks every mode
 retired and invents an outage someone then acts on.
 
 > This fleet runs it daily across every repo from
-> [`dotfiles/scripts/ci/model-pin-audit.mjs`](https://github.com/catomean/dotfiles).
+> [`fleet/scripts/ci/model-pin-audit.mjs`](https://github.com/bitbaum/fleet).
 
 ### Too fast? — the three kinds of 429
 
@@ -124,7 +160,7 @@ import { useAiForm } from 'ai-kit/react';
 import { createFormAssistHandler } from 'ai-kit/server';
 ```
 
-Re-exported from [`ai-forms`](https://github.com/catomean/ai-forms), which
+Re-exported from [`ai-forms`](https://github.com/bitbaum/ai-forms), which
 stays its own package — it works, four apps run it, and it is useful well outside
 this fleet. Swallowing it would have broken those four for the sake of a filing
 system.
@@ -163,9 +199,9 @@ locally.
 
 | Package | For |
 |---|---|
-| [`ai-forms`](https://github.com/catomean/ai-forms) | Form filling on its own, without the model layer |
-| [`threadkit`](https://github.com/catomean/threadkit) | Messages between people, and who may see them |
-| [`limitkit`](https://github.com/catomean/limitkit) | Stopping someone doing something too often |
+| [`ai-forms`](https://github.com/bitbaum/ai-forms) | Form filling on its own, without the model layer |
+| [`threadkit`](https://github.com/bitbaum/threadkit) | Messages between people, and who may see them |
+| [`limitkit`](https://github.com/bitbaum/limitkit) | Stopping someone doing something too often |
 
 `threadkit` and `limitkit` are **not** merged in here, on purpose: neither has
 anything to do with AI. An app that throttles its login form should not install a

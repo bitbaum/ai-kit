@@ -17,6 +17,10 @@ test('the package exports its public surface through the exports map', () => {
   const expected = [
     // chain
     'providerModels', 'withEnvPrefix', 'freeChain', 'dayCapacityTokens', 'usableChain', 'chainFrom',
+    // attempt
+    'tryChain', 'ChainExhaustedError',
+    // health
+    'createHealthTracker',
     // limits
     'classifyRateLimit', 'retryAfterSeconds', 'humanizeWait', 'rateLimitMessage',
     // fair-share
