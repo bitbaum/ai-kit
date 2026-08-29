@@ -1,7 +1,7 @@
 {
   "name": "ai-kit",
-  "version": "0.5.0",
-  "description": "One install for the AI layer of an app: which model to call, what to do when the vendor retires it, how to walk the fallback chain and know when none of it worked, how to read the three kinds of 429, a fair daily budget across users, and headless AI form filling.",
+  "version": "0.6.0",
+  "description": "One install for the AI layer of an app: which model to call, what to do when the vendor retires it, how to walk the fallback chain and know when none of it worked, how to read the three kinds of 429, a fair daily budget across users, headless AI form filling \u2014 and now the model registry (one SSOT for every callable id, with the paid/free boundary as a field) and the grounding harness (facts, contract, deterministic fabrication check).",
   "license": "MIT",
   "author": "Mao Nakamoto",
   "homepage": "https://github.com/bitbaum/ai-kit#readme",
@@ -54,6 +54,14 @@
     "./server": {
       "types": "./dist/server.d.ts",
       "default": "./dist/server.js"
+    },
+    "./registry": {
+      "types": "./dist/registry.d.ts",
+      "default": "./dist/registry.js"
+    },
+    "./grounding": {
+      "types": "./dist/grounding/index.d.ts",
+      "default": "./dist/grounding/index.js"
     }
   },
   "scripts": {
