@@ -39,55 +39,53 @@ exports.toolCapable = toolCapable;
 /** A `:free`-suffixed id claiming to be paid, or a "free" entry with a price —
  *  each one is the 2026 billing incident waiting to recur. */
 function validateEntry(e) {
-  if (!e.id.trim()) return "entry has an empty id";
-  if (!e.vendor.trim()) return `"${e.id}": empty vendor`;
-  const cost = (e.inputCostPer1M ?? 0) + (e.outputCostPer1M ?? 0);
-  if (!e.paid && cost > 0) {
-    return `"${e.id}": declared free but carries a cost (${cost}/1M) — the flag or the price is lying`;
-  }
-  if (e.paid && e.id.endsWith(":free")) {
-    return `"${e.id}": declared paid but the id says :free — the flag or the id is lying`;
-  }
-  return null;
+    if (!e.id.trim())
+        return "entry has an empty id";
+    if (!e.vendor.trim())
+        return `"${e.id}": empty vendor`;
+    const cost = (e.inputCostPer1M ?? 0) + (e.outputCostPer1M ?? 0);
+    if (!e.paid && cost > 0) {
+        return `"${e.id}": declared free but carries a cost (${cost}/1M) — the flag or the price is lying`;
+    }
+    if (e.paid && e.id.endsWith(":free")) {
+        return `"${e.id}": declared paid but the id says :free — the flag or the id is lying`;
+    }
+    return null;
 }
 /**
  * Build a registry from entries. Throws on the first contradiction — a
  * registry that loads is a registry whose billing boundary can be trusted.
  */
 function defineRegistry(entries) {
-  const seen = new Set();
-  for (const e of entries) {
-    const problem = validateEntry(e);
-    if (problem) throw new Error(`ai-kit registry: ${problem}`);
-    const key = `${e.vendor}:${e.id}`;
-    if (seen.has(key)) {
-      throw new Error(
-        `ai-kit registry: duplicate entry ${key} — two rows for one callable id is two sources of truth`,
-      );
+    const seen = new Set();
+    for (const e of entries) {
+        const problem = validateEntry(e);
+        if (problem)
+            throw new Error(`ai-kit registry: ${problem}`);
+        const key = `${e.vendor}:${e.id}`;
+        if (seen.has(key)) {
+            throw new Error(`ai-kit registry: duplicate entry ${key} — two rows for one callable id is two sources of truth`);
+        }
+        seen.add(key);
     }
-    seen.add(key);
-  }
-  const frozen = Object.freeze(entries.map((e) => ({ ...e })));
-  const find = (id, vendor) =>
-    frozen.find((e) => e.id === id && (vendor === undefined || e.vendor === vendor));
-  return {
-    entries: frozen,
-    find,
-    require(id, vendor) {
-      const hit = find(id, vendor);
-      if (!hit) {
-        const scope = vendor ? ` at ${vendor}` : "";
-        throw new Error(
-          `ai-kit registry: "${id}"${scope} is not registered — a model id is callable only if it appears in the registry (add it with its paid flag, or stop calling it)`,
-        );
-      }
-      return hit;
-    },
-    idsForVendor: (vendor) => frozen.filter((e) => e.vendor === vendor).map((e) => e.id),
-    vendors: () => [...new Set(frozen.map((e) => e.vendor))],
-    freeEntries: () => frozen.filter((e) => !e.paid),
-    paidEntries: () => frozen.filter((e) => e.paid),
-  };
+    const frozen = Object.freeze(entries.map((e) => ({ ...e })));
+    const find = (id, vendor) => frozen.find((e) => e.id === id && (vendor === undefined || e.vendor === vendor));
+    return {
+        entries: frozen,
+        find,
+        require(id, vendor) {
+            const hit = find(id, vendor);
+            if (!hit) {
+                const scope = vendor ? ` at ${vendor}` : "";
+                throw new Error(`ai-kit registry: "${id}"${scope} is not registered — a model id is callable only if it appears in the registry (add it with its paid flag, or stop calling it)`);
+            }
+            return hit;
+        },
+        idsForVendor: (vendor) => frozen.filter((e) => e.vendor === vendor).map((e) => e.id),
+        vendors: () => [...new Set(frozen.map((e) => e.vendor))],
+        freeEntries: () => frozen.filter((e) => !e.paid),
+        paidEntries: () => frozen.filter((e) => e.paid),
+    };
 }
 /**
  * The platform-key guard: the ids from `requested` that a platform-funded
@@ -99,15 +97,18 @@ function defineRegistry(entries) {
  * as "covered everything" when it didn't.
  */
 function freeOnly(registry, requested) {
-  const allowed = [];
-  const dropped = [];
-  for (const id of requested) {
-    const entry = registry.find(id);
-    if (!entry) dropped.push({ id, why: "unregistered" });
-    else if (entry.paid) dropped.push({ id, why: "paid" });
-    else allowed.push(id);
-  }
-  return { allowed, dropped };
+    const allowed = [];
+    const dropped = [];
+    for (const id of requested) {
+        const entry = registry.find(id);
+        if (!entry)
+            dropped.push({ id, why: "unregistered" });
+        else if (entry.paid)
+            dropped.push({ id, why: "paid" });
+        else
+            allowed.push(id);
+    }
+    return { allowed, dropped };
 }
 /**
  * A tool-driving chain may only contain models that can drive a tool loop.
@@ -116,13 +117,15 @@ function freeOnly(registry, requested) {
  * exactly on the models most likely to serve free traffic.
  */
 function toolCapable(registry, requested) {
-  const usable = [];
-  const refused = [];
-  for (const id of requested) {
-    const entry = registry.find(id);
-    const protocol = entry?.toolProtocol ?? "unprobed";
-    if (protocol === "native" || protocol === "text") usable.push(id);
-    else refused.push({ id, protocol });
-  }
-  return { usable, refused };
+    const usable = [];
+    const refused = [];
+    for (const id of requested) {
+        const entry = registry.find(id);
+        const protocol = entry?.toolProtocol ?? "unprobed";
+        if (protocol === "native" || protocol === "text")
+            usable.push(id);
+        else
+            refused.push({ id, protocol });
+    }
+    return { usable, refused };
 }

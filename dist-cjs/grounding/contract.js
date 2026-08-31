@@ -40,32 +40,29 @@ exports.NO_BASIS = "Not in your data.";
  * plainly beats hoping the model notices the context block is empty.
  */
 function buildContract(facts, directives = []) {
-  const ids = [
-    ...facts.map((f) => `[${f.id}]`),
-    ...directives.map((_, i) => `[${directiveId(i)}]`),
-  ].join(" ");
-  const gaps = (0, facts_js_1.unrecordedFields)(facts);
-  const rules = [
-    "## Grounding contract — this overrides every formatting instruction below",
-    "",
-    "You are answering from a fixed set of records. They are the ONLY things you know about the operator.",
-    "",
-    facts.length === 0 && directives.length === 0
-      ? `1. NO records were retrieved for this turn. You therefore cannot answer any question about the operator's projects, people, goals, habits, commitments or events. Reply "${exports.NO_BASIS}" and say what you would need.`
-      : `1. Every claim about the operator MUST cite a record id. Legal citations this turn, and no others: ${ids}`,
-    `2. A field shown as \`${facts_js_1.NOT_RECORDED}\` means you DO NOT KNOW it. Never supply a value for it — not from the record's own wording, not from a name that looks like a place or an organisation, not from general knowledge about a similarly-named person. A surname is not an employer.`,
-    `3. If any part of the request has no supporting record, answer that part with exactly "${exports.NO_BASIS}" and continue with the parts you can support. A requested format NEVER obliges you to invent an item. Returning three of five requested items, each cited, is a correct and complete answer.`,
-    "4. Do not describe a person's role, employer, seniority, or history unless a record field states it. Do not infer an organisation from a name.",
-    "5. You have not browsed the web this turn. If asked to research someone, say you cannot and report only what the records hold.",
-    "6. If you are correcting an earlier answer, the correction is subject to every rule above — cite the record, or say the record does not exist.",
-  ];
-  if (gaps.length > 0) {
-    rules.push(
-      "",
-      `Unrecorded in THIS turn's records — you have no value for any of these and must not state one: ${gaps.join(", ")}`,
-    );
-  }
-  return rules.join("\n");
+    const ids = [
+        ...facts.map((f) => `[${f.id}]`),
+        ...directives.map((_, i) => `[${directiveId(i)}]`),
+    ].join(" ");
+    const gaps = (0, facts_js_1.unrecordedFields)(facts);
+    const rules = [
+        "## Grounding contract — this overrides every formatting instruction below",
+        "",
+        "You are answering from a fixed set of records. They are the ONLY things you know about the operator.",
+        "",
+        facts.length === 0 && directives.length === 0
+            ? `1. NO records were retrieved for this turn. You therefore cannot answer any question about the operator's projects, people, goals, habits, commitments or events. Reply "${exports.NO_BASIS}" and say what you would need.`
+            : `1. Every claim about the operator MUST cite a record id. Legal citations this turn, and no others: ${ids}`,
+        `2. A field shown as \`${facts_js_1.NOT_RECORDED}\` means you DO NOT KNOW it. Never supply a value for it — not from the record's own wording, not from a name that looks like a place or an organisation, not from general knowledge about a similarly-named person. A surname is not an employer.`,
+        `3. If any part of the request has no supporting record, answer that part with exactly "${exports.NO_BASIS}" and continue with the parts you can support. A requested format NEVER obliges you to invent an item. Returning three of five requested items, each cited, is a correct and complete answer.`,
+        "4. Do not describe a person's role, employer, seniority, or history unless a record field states it. Do not infer an organisation from a name.",
+        "5. You have not browsed the web this turn. If asked to research someone, say you cannot and report only what the records hold.",
+        "6. If you are correcting an earlier answer, the correction is subject to every rule above — cite the record, or say the record does not exist.",
+    ];
+    if (gaps.length > 0) {
+        rules.push("", `Unrecorded in THIS turn's records — you have no value for any of these and must not state one: ${gaps.join(", ")}`);
+    }
+    return rules.join("\n");
 }
 /**
  * The subset of the contract that needs no fact ids — for an assistant whose
@@ -82,16 +79,16 @@ function buildContract(facts, directives = []) {
  * layer; the destination is typed records here too.
  */
 function buildAssistantRules(opts) {
-  return [
-    "## Grounding rules — these override formatting instructions",
-    "",
-    `1. Everything you state about the user's own ${opts.subjectNoun} must come from the context above. Do not add an organisation, role, employer, history, or relationship that the context does not state.`,
-    "2. Do not infer an affiliation from a name. A word inside someone's name is not their employer or their city.",
-    "3. You have not browsed the web in this turn. If asked to research a person or company, say you cannot, and report only what the context holds.",
-    `4. If part of the request has no support in the context, answer that part with exactly "${exports.NO_BASIS}" and continue with the parts you can support. A requested format never obliges you to invent an item.`,
-    "5. General knowledge (how Bitcoin, Lightning, or a payment method works) is fine to use and is not covered by rules 1–2. The restriction is on facts about THIS user and the people and organisations in their data.",
-    "6. A correction is a claim too. If you are correcting yourself, it must be supported by the context or stated as unknown.",
-  ].join("\n");
+    return [
+        "## Grounding rules — these override formatting instructions",
+        "",
+        `1. Everything you state about the user's own ${opts.subjectNoun} must come from the context above. Do not add an organisation, role, employer, history, or relationship that the context does not state.`,
+        "2. Do not infer an affiliation from a name. A word inside someone's name is not their employer or their city.",
+        "3. You have not browsed the web in this turn. If asked to research a person or company, say you cannot, and report only what the context holds.",
+        `4. If part of the request has no support in the context, answer that part with exactly "${exports.NO_BASIS}" and continue with the parts you can support. A requested format never obliges you to invent an item.`,
+        "5. General knowledge (how Bitcoin, Lightning, or a payment method works) is fine to use and is not covered by rules 1–2. The restriction is on facts about THIS user and the people and organisations in their data.",
+        "6. A correction is a claim too. If you are correcting yourself, it must be supported by the context or stated as unknown.",
+    ].join("\n");
 }
 /**
  * Citation handle for a computed answer, parallel to a Fact's [F1].
@@ -103,7 +100,7 @@ function buildAssistantRules(opts) {
  * ids and the sentence cites [D1] like anything else.
  */
 function directiveId(index) {
-  return `D${index + 1}`;
+    return `D${index + 1}`;
 }
 /**
  * Render computed answers. These are stated as settled, because they are: the
@@ -112,22 +109,22 @@ function directiveId(index) {
  * fact set.
  */
 function renderDirectives(directives) {
-  if (directives.length === 0) return "";
-  const blocks = directives.map((d, i) => {
-    const body =
-      d.answer.length > 0
-        ? d.answer.map((a) => `     - ${a}`).join("\n")
-        : "     (none — the query ran and matched nothing)";
-    return `  [${directiveId(i)}] ${d.question}   [${d.method}]\n${body}`;
-  });
-  return [
-    "## Computed answers — already resolved, do not re-derive",
-    "These were computed directly from the database for this turn. They are exact.",
-    "Report them as given and cite their id, exactly as you would a record.",
-    "Where the result is empty, say so plainly — do not substitute a plausible item from the records.",
-    "",
-    ...blocks,
-  ].join("\n");
+    if (directives.length === 0)
+        return "";
+    const blocks = directives.map((d, i) => {
+        const body = d.answer.length > 0
+            ? d.answer.map((a) => `     - ${a}`).join("\n")
+            : "     (none — the query ran and matched nothing)";
+        return `  [${directiveId(i)}] ${d.question}   [${d.method}]\n${body}`;
+    });
+    return [
+        "## Computed answers — already resolved, do not re-derive",
+        "These were computed directly from the database for this turn. They are exact.",
+        "Report them as given and cite their id, exactly as you would a record.",
+        "Where the result is empty, say so plainly — do not substitute a plausible item from the records.",
+        "",
+        ...blocks,
+    ].join("\n");
 }
 /**
  * Assemble the full grounded context: contract, computed answers, then records.
@@ -137,13 +134,13 @@ function renderDirectives(directives) {
  * the user's question — the position small models weight most heavily.
  */
 function buildGroundedContext(input) {
-  return [
-    buildContract(input.facts, input.directives ?? []),
-    renderDirectives(input.directives ?? []),
-    input.facts.length > 0
-      ? ["## Records", "", input.renderedFacts].join("\n")
-      : "## Records\n\n(none retrieved)",
-  ]
-    .filter(Boolean)
-    .join("\n\n---\n\n");
+    return [
+        buildContract(input.facts, input.directives ?? []),
+        renderDirectives(input.directives ?? []),
+        input.facts.length > 0
+            ? ["## Records", "", input.renderedFacts].join("\n")
+            : "## Records\n\n(none retrieved)",
+    ]
+        .filter(Boolean)
+        .join("\n\n---\n\n");
 }
