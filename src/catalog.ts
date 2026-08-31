@@ -134,7 +134,9 @@ export function catalogReport(verdicts: CatalogVerdict[]): string {
   const lines: string[] = [];
   for (const v of verdicts) {
     if (v.live === null) {
-      lines.push(`? ${v.provider}: catalogue unreadable (no key, or the request failed) — ${v.unchecked.length} id(s) UNCHECKED`);
+      lines.push(
+        `? ${v.provider}: catalogue unreadable (no key, or the request failed) — ${v.unchecked.length} id(s) UNCHECKED`,
+      );
       for (const m of v.unchecked) lines.push(`    ? ${m}`);
       continue;
     }
@@ -142,8 +144,12 @@ export function catalogReport(verdicts: CatalogVerdict[]): string {
     for (const m of v.missing) lines.push(`  GONE ${v.provider}/${m}`);
   }
   const dead = deadProviders(verdicts);
-  if (dead.length) lines.push(`\nEVERY model is gone at: ${dead.join(", ")} — the chain has lost that vendor entirely.`);
+  if (dead.length)
+    lines.push(
+      `\nEVERY model is gone at: ${dead.join(", ")} — the chain has lost that vendor entirely.`,
+    );
   const unchecked = verdicts.reduce((n, v) => n + v.unchecked.length, 0);
-  if (unchecked) lines.push(`\n${unchecked} id(s) could not be checked. That is not a pass for them.`);
+  if (unchecked)
+    lines.push(`\n${unchecked} id(s) could not be checked. That is not a pass for them.`);
   return lines.join("\n");
 }

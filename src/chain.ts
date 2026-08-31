@@ -109,7 +109,10 @@ export function providerModels(provider: Provider, env: Env = process.env): stri
  * LOKI_GROQ_DAILY_TOKENS. The key env stays explicit because it is usually the
  * vendor's conventional name (GROQ_API_KEY), shared with other tools.
  */
-export function withEnvPrefix(prefix: string, provider: Omit<Provider, "modelsEnv" | "dailyTokensEnv">): Provider {
+export function withEnvPrefix(
+  prefix: string,
+  provider: Omit<Provider, "modelsEnv" | "dailyTokensEnv">,
+): Provider {
   const slug = provider.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
   return {
     ...provider,

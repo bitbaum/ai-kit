@@ -24,10 +24,14 @@ console.log("");
 
 const dead = deadProviders(verdicts);
 if (dead.length) {
-  console.error(`A whole vendor is gone (${dead.join(", ")}) — the chain is back to a single point of failure.`);
+  console.error(
+    `A whole vendor is gone (${dead.join(", ")}) — the chain is back to a single point of failure.`,
+  );
 }
 if (hasRot(verdicts)) {
-  console.error("Retired model ids are still pinned. Re-probe replacements and update freeChain().");
+  console.error(
+    "Retired model ids are still pinned. Re-probe replacements and update freeChain().",
+  );
   process.exit(1);
 }
 const unchecked = verdicts.reduce((n, v) => n + v.unchecked.length, 0);

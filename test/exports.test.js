@@ -8,23 +8,36 @@
  * package may import itself by name when it declares `exports`) is what makes
  * this checkable without publishing.
  */
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test } from "node:test";
+import assert from "node:assert/strict";
 
-import * as pkg from 'ai-kit';
+import * as pkg from "ai-kit";
 
-test('the package exports its public surface through the exports map', () => {
+test("the package exports its public surface through the exports map", () => {
   const expected = [
     // chain
-    'providerModels', 'withEnvPrefix', 'freeChain', 'dayCapacityTokens', 'usableChain', 'chainFrom',
+    "providerModels",
+    "withEnvPrefix",
+    "freeChain",
+    "dayCapacityTokens",
+    "usableChain",
+    "chainFrom",
     // attempt
-    'tryChain', 'ChainExhaustedError',
+    "tryChain",
+    "ChainExhaustedError",
     // health
-    'createHealthTracker',
+    "createHealthTracker",
     // limits
-    'classifyRateLimit', 'retryAfterSeconds', 'humanizeWait', 'rateLimitMessage',
+    "classifyRateLimit",
+    "retryAfterSeconds",
+    "humanizeWait",
+    "rateLimitMessage",
     // fair-share
-    'fairShare', 'utcDayElapsed', 'utcDayKey', 'DAY_SECONDS', 'DEFAULT_BURST',
+    "fairShare",
+    "utcDayElapsed",
+    "utcDayKey",
+    "DAY_SECONDS",
+    "DEFAULT_BURST",
   ];
   for (const name of expected) {
     assert.ok(name in pkg, `missing export: ${name}`);
@@ -40,10 +53,10 @@ test('the package exports its public surface through the exports map', () => {
  * was taken down by one it skipped. Everything below still ships from this one
  * package at one version. What changed is WHERE from.
  */
-test('form filling is reachable from the package, so one install covers it', async () => {
-  const forms = await import('ai-kit/forms');
-  for (const name of ['runFormAssist', 'defineFields', 'mergeValues', 'sanitizeValues']) {
-    assert.equal(typeof forms[name], 'function', `missing export: ${name}`);
+test("form filling is reachable from the package, so one install covers it", async () => {
+  const forms = await import("ai-kit/forms");
+  for (const name of ["runFormAssist", "defineFields", "mergeValues", "sanitizeValues"]) {
+    assert.equal(typeof forms[name], "function", `missing export: ${name}`);
   }
 });
 
@@ -61,10 +74,10 @@ test('form filling is reachable from the package, so one install covers it', asy
  * So the absence is the contract. A convenience re-export added back at the root
  * would look harmless in review and break the next consumer the same way.
  */
-test('the root does NOT drag the form layer in behind the chain', async () => {
-  const pkg = await import('ai-kit');
-  assert.equal(typeof pkg.freeChain, 'function', 'the chain belongs at the root');
-  for (const name of ['runFormAssist', 'defineFields']) {
+test("the root does NOT drag the form layer in behind the chain", async () => {
+  const pkg = await import("ai-kit");
+  assert.equal(typeof pkg.freeChain, "function", "the chain belongs at the root");
+  for (const name of ["runFormAssist", "defineFields"]) {
     assert.equal(
       name in pkg,
       false,
@@ -73,12 +86,12 @@ test('the root does NOT drag the form layer in behind the chain', async () => {
   }
 });
 
-test('./forms resolves through the exports map', async () => {
-  const forms = await import('ai-kit/forms');
-  assert.equal(typeof forms.runFormAssist, 'function');
+test("./forms resolves through the exports map", async () => {
+  const forms = await import("ai-kit/forms");
+  assert.equal(typeof forms.runFormAssist, "function");
 });
 
-test('./server resolves, and is what the most-adopted package actually ships', async () => {
-  const server = await import('ai-kit/server');
-  assert.equal(typeof server.createFormAssistHandler, 'function');
+test("./server resolves, and is what the most-adopted package actually ships", async () => {
+  const server = await import("ai-kit/server");
+  assert.equal(typeof server.createFormAssistHandler, "function");
 });
