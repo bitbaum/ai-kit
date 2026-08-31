@@ -35,8 +35,7 @@ const facts_js_1 = require("./facts.js");
  * every entry is a hole in the check, so add only what demonstrably causes
  * false positives, never to silence a true one.
  */
-const COMMON = new Set(
-  [
+const COMMON = new Set([
     // Sentence/structural
     "the",
     "a",
@@ -119,15 +118,14 @@ const COMMON = new Set(
     "orangecat",
     "not",
     "recorded",
-  ].map((w) => w.toLowerCase()),
-);
+].map((w) => w.toLowerCase()));
 /** Normalise for containment tests: casefold, collapse punctuation and space. */
 function norm(s) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9+]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    return s
+        .toLowerCase()
+        .replace(/[^a-z0-9+]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 /**
  * Everything the model was legitimately given this turn: record values, record
@@ -135,12 +133,14 @@ function norm(s) {
  * repeat). This is the corpus a claim must be traceable to.
  */
 function buildEvidence(facts, userMessage, extra) {
-  const parts = [userMessage, ...extra];
-  for (const f of facts) {
-    parts.push(f.subject, f.kind, f.source);
-    for (const v of Object.values(f.fields)) if (v) parts.push(v);
-  }
-  return norm(parts.join(" "));
+    const parts = [userMessage, ...extra];
+    for (const f of facts) {
+        parts.push(f.subject, f.kind, f.source);
+        for (const v of Object.values(f.fields))
+            if (v)
+                parts.push(v);
+    }
+    return norm(parts.join(" "));
 }
 /**
  * Lowercase words that legitimately sit INSIDE a proper name and must not break
@@ -150,21 +150,21 @@ function buildEvidence(facts, userMessage, extra) {
  * fabricated entity slips through unnamed.
  */
 const NAME_CONNECTORS = new Set([
-  "of",
-  "the",
-  "for",
-  "and",
-  "de",
-  "der",
-  "des",
-  "van",
-  "von",
-  "du",
-  "da",
-  "di",
-  "für",
-  "el",
-  "al",
+    "of",
+    "the",
+    "for",
+    "and",
+    "de",
+    "der",
+    "des",
+    "van",
+    "von",
+    "du",
+    "da",
+    "di",
+    "für",
+    "el",
+    "al",
 ]);
 /**
  * Named-entity candidates: ALL-CAPS acronyms, capitalised words, and the
@@ -184,45 +184,46 @@ const NAME_CONNECTORS = new Set([
  * still caught by its remaining tokens.
  */
 function properNounRuns(text) {
-  const out = [];
-  // Strip fenced and inline code — quoted identifiers are usually the user's
-  // own or a literal under discussion, not a claim about the world.
-  const prose = text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
-  for (const sentence of prose.split(/(?<=[.!?:\n])\s+/)) {
-    const tokens = sentence.match(/[A-Za-z][A-Za-z0-9&.'’-]*/g) ?? [];
-    let run = [];
-    const flush = () => {
-      // Trim trailing connectors so "University of" never stands as a run.
-      while (run.length > 0 && NAME_CONNECTORS.has((run[run.length - 1] ?? "").toLowerCase()))
-        run.pop();
-      if (run.length > 1) out.push(run.join(" "));
-      run = [];
-    };
-    tokens.forEach((tok, i) => {
-      const bare = tok.replace(/[.'’-]+$/, "");
-      const isAcronym = /^[A-Z]{2,}$/.test(bare);
-      const isCapitalised = /^[A-Z][a-z]/.test(bare);
-      const isConnector = NAME_CONNECTORS.has(bare.toLowerCase());
-      if (isAcronym || (isCapitalised && i > 0)) {
-        run.push(bare);
-        out.push(bare); // individually checkable
-        return;
-      }
-      // A connector only continues a run that has already started.
-      if (isConnector && run.length > 0) {
-        run.push(bare);
-        return;
-      }
-      flush();
-    });
-    flush();
-  }
-  return out;
+    const out = [];
+    // Strip fenced and inline code — quoted identifiers are usually the user's
+    // own or a literal under discussion, not a claim about the world.
+    const prose = text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
+    for (const sentence of prose.split(/(?<=[.!?:\n])\s+/)) {
+        const tokens = sentence.match(/[A-Za-z][A-Za-z0-9&.'’-]*/g) ?? [];
+        let run = [];
+        const flush = () => {
+            // Trim trailing connectors so "University of" never stands as a run.
+            while (run.length > 0 && NAME_CONNECTORS.has((run[run.length - 1] ?? "").toLowerCase()))
+                run.pop();
+            if (run.length > 1)
+                out.push(run.join(" "));
+            run = [];
+        };
+        tokens.forEach((tok, i) => {
+            const bare = tok.replace(/[.'’-]+$/, "");
+            const isAcronym = /^[A-Z]{2,}$/.test(bare);
+            const isCapitalised = /^[A-Z][a-z]/.test(bare);
+            const isConnector = NAME_CONNECTORS.has(bare.toLowerCase());
+            if (isAcronym || (isCapitalised && i > 0)) {
+                run.push(bare);
+                out.push(bare); // individually checkable
+                return;
+            }
+            // A connector only continues a run that has already started.
+            if (isConnector && run.length > 0) {
+                run.push(bare);
+                return;
+            }
+            flush();
+        });
+        flush();
+    }
+    return out;
 }
 /** Digit groups worth checking: phone numbers, years, percentages, counts ≥ 2 digits. */
 function numericClaims(text) {
-  const prose = text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
-  return (prose.match(/\+?\d[\d\s().-]{3,}\d|\b\d{2,}%?\b/g) ?? []).map((s) => s.trim());
+    const prose = text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
+    return (prose.match(/\+?\d[\d\s().-]{3,}\d|\b\d{2,}%?\b/g) ?? []).map((s) => s.trim());
 }
 /**
  * File and path references — a favourite fabrication, and an unusually
@@ -237,24 +238,26 @@ function numericClaims(text) {
  * original error: it spends the credibility the user was trying to restore.
  */
 function pathClaims(text) {
-  const patterns = [
-    /(?:^|[\s("'`])(\/[A-Za-z0-9_.\-/]{4,})/g, // absolute
-    /(?:^|[\s("'`])([A-Za-z0-9_.-]+\/[A-Za-z0-9_.\-/]*[A-Za-z0-9_-]\.[a-z]{2,5})/g, // relative w/ extension
-    /(?:^|[\s("'`])([A-Za-z0-9_-]+\.(?:json|env|ya?ml|sql|toml|ini|conf|log))\b/g, // bare config filename
-  ];
-  const out = new Set();
-  for (const re of patterns) {
-    for (const m of text.matchAll(re)) if (m[1]) out.add(m[1]);
-  }
-  return [...out];
+    const patterns = [
+        /(?:^|[\s("'`])(\/[A-Za-z0-9_.\-/]{4,})/g, // absolute
+        /(?:^|[\s("'`])([A-Za-z0-9_.-]+\/[A-Za-z0-9_.\-/]*[A-Za-z0-9_-]\.[a-z]{2,5})/g, // relative w/ extension
+        /(?:^|[\s("'`])([A-Za-z0-9_-]+\.(?:json|env|ya?ml|sql|toml|ini|conf|log))\b/g, // bare config filename
+    ];
+    const out = new Set();
+    for (const re of patterns) {
+        for (const m of text.matchAll(re))
+            if (m[1])
+                out.add(m[1]);
+    }
+    return [...out];
 }
 /** Does this sentence talk about one of the user's own records? */
 function mentionsSubject(sentence, subjects) {
-  const s = norm(sentence);
-  return subjects.some((sub) => {
-    const n = norm(sub);
-    return n.length > 2 && s.includes(n);
-  });
+    const s = norm(sentence);
+    return subjects.some((sub) => {
+        const n = norm(sub);
+        return n.length > 2 && s.includes(n);
+    });
 }
 /**
  * Verify an answer against the facts it was supposed to come from.
@@ -268,85 +271,94 @@ function mentionsSubject(sentence, subjects) {
  * check can tell "your contact Elena works at X" from "Lightning is instant".
  */
 function verifyAnswer(input) {
-  const { answer, facts, userMessage } = input;
-  const mode = input.mode ?? "closed-world";
-  const subjects = input.subjects ?? facts.map((f) => f.subject);
-  const evidence = buildEvidence(facts, userMessage, input.extraEvidence ?? []);
-  const legalIds = new Set([
-    ...facts.map((f) => f.id.toUpperCase()),
-    ...(input.extraCitationIds ?? []).map((id) => id.toUpperCase()),
-  ]);
-  const violations = [];
-  /**
-   * In entity-attribution mode, only sentences about the user's own records are
-   * subject to the name check. Built once so the per-token loop stays cheap.
-   */
-  const attributionScope =
-    mode === "entity-attribution"
-      ? answer
-          .split(/(?<=[.!?:\n])\s+/)
-          .filter((s) => mentionsSubject(s, subjects))
-          .join(" ")
-      : answer;
-  // 1. Citations must resolve. A citation to a record that does not exist is
-  //    the strongest possible signal of fabrication — it invents its own proof.
-  for (const cite of answer.match(/\[[FD]\d+\]/g) ?? []) {
-    const id = cite.slice(1, -1).toUpperCase();
-    if (!legalIds.has(id)) {
-      violations.push({
-        kind: "unknown-citation",
-        text: cite,
-        detail: `${cite} is not a record in this turn's context. Cite only ids that were provided, or say there is no record.`,
-      });
+    const { answer, facts, userMessage } = input;
+    const mode = input.mode ?? "closed-world";
+    const subjects = input.subjects ?? facts.map((f) => f.subject);
+    const evidence = buildEvidence(facts, userMessage, input.extraEvidence ?? []);
+    const legalIds = new Set([
+        ...facts.map((f) => f.id.toUpperCase()),
+        ...(input.extraCitationIds ?? []).map((id) => id.toUpperCase()),
+    ]);
+    const violations = [];
+    /**
+     * In entity-attribution mode, only sentences about the user's own records are
+     * subject to the name check. Built once so the per-token loop stays cheap.
+     */
+    const attributionScope = mode === "entity-attribution"
+        ? answer
+            .split(/(?<=[.!?:\n])\s+/)
+            .filter((s) => mentionsSubject(s, subjects))
+            .join(" ")
+        : answer;
+    // 1. Citations must resolve. A citation to a record that does not exist is
+    //    the strongest possible signal of fabrication — it invents its own proof.
+    for (const cite of answer.match(/\[[FD]\d+\]/g) ?? []) {
+        const id = cite.slice(1, -1).toUpperCase();
+        if (!legalIds.has(id)) {
+            violations.push({
+                kind: "unknown-citation",
+                text: cite,
+                detail: `${cite} is not a record in this turn's context. Cite only ids that were provided, or say there is no record.`,
+            });
+        }
     }
-  }
-  // 2. Named entities must be traceable. This is the anti-"UZH" rule.
-  const seen = new Set();
-  for (const run of properNounRuns(attributionScope)) {
-    const n = norm(run);
-    if (!n || seen.has(n)) continue;
-    seen.add(n);
-    // Single common words are noise; multi-word runs always checked.
-    const words = n.split(" ");
-    if (words.length === 1 && (COMMON.has(words[0] ?? "") || (words[0] ?? "").length < 2)) continue;
-    if (words.every((w) => COMMON.has(w))) continue;
-    if (evidence.includes(n)) continue;
-    // A multi-word run whose every word is individually attested is fine —
-    // it is a rephrasing, not a new entity.
-    if (words.length > 1 && words.every((w) => COMMON.has(w) || evidence.includes(w))) continue;
-    violations.push({
-      kind: "novel-proper-noun",
-      text: run,
-      detail: `"${run}" does not appear in any record or in the operator's message. If it is an organisation, role, or place you associated with someone, the relevant field is ${facts_js_1.NOT_RECORDED} — remove the claim.`,
-    });
-  }
-  // 3. Numbers must be traceable — invented phone numbers and dates read as
-  //    authoritative precisely because they are specific.
-  for (const num of numericClaims(answer)) {
-    const n = norm(num);
-    if (!n || n.length < 2) continue;
-    if (evidence.includes(n)) continue;
-    // Compare digits-only too: "+41 77 473 00 93" vs stored "+41774730093".
-    const digits = num.replace(/\D/g, "");
-    if (digits.length >= 4 && evidence.replace(/\D/g, "").includes(digits)) continue;
-    if (digits.length < 4) continue; // small counts ("3 tasks") are rhetorical
-    violations.push({
-      kind: "novel-number",
-      text: num,
-      detail: `The number "${num}" is not in any record. Do not state contact details, dates, or metrics that were not provided.`,
-    });
-  }
-  // 4. Paths — "update the key in /opt/fleetcrown/runner/.env" was invented
-  //    wholesale, and its specificity is what made it convincing.
-  for (const p of pathClaims(answer)) {
-    if (evidence.includes(norm(p))) continue;
-    violations.push({
-      kind: "novel-path",
-      text: p,
-      detail: `The path "${p}" is not in any record. Do not state file locations you were not given.`,
-    });
-  }
-  return { ok: violations.length === 0, violations };
+    // 2. Named entities must be traceable. This is the anti-"UZH" rule.
+    const seen = new Set();
+    for (const run of properNounRuns(attributionScope)) {
+        const n = norm(run);
+        if (!n || seen.has(n))
+            continue;
+        seen.add(n);
+        // Single common words are noise; multi-word runs always checked.
+        const words = n.split(" ");
+        if (words.length === 1 && (COMMON.has(words[0] ?? "") || (words[0] ?? "").length < 2))
+            continue;
+        if (words.every((w) => COMMON.has(w)))
+            continue;
+        if (evidence.includes(n))
+            continue;
+        // A multi-word run whose every word is individually attested is fine —
+        // it is a rephrasing, not a new entity.
+        if (words.length > 1 && words.every((w) => COMMON.has(w) || evidence.includes(w)))
+            continue;
+        violations.push({
+            kind: "novel-proper-noun",
+            text: run,
+            detail: `"${run}" does not appear in any record or in the operator's message. If it is an organisation, role, or place you associated with someone, the relevant field is ${facts_js_1.NOT_RECORDED} — remove the claim.`,
+        });
+    }
+    // 3. Numbers must be traceable — invented phone numbers and dates read as
+    //    authoritative precisely because they are specific.
+    for (const num of numericClaims(answer)) {
+        const n = norm(num);
+        if (!n || n.length < 2)
+            continue;
+        if (evidence.includes(n))
+            continue;
+        // Compare digits-only too: "+41 77 473 00 93" vs stored "+41774730093".
+        const digits = num.replace(/\D/g, "");
+        if (digits.length >= 4 && evidence.replace(/\D/g, "").includes(digits))
+            continue;
+        if (digits.length < 4)
+            continue; // small counts ("3 tasks") are rhetorical
+        violations.push({
+            kind: "novel-number",
+            text: num,
+            detail: `The number "${num}" is not in any record. Do not state contact details, dates, or metrics that were not provided.`,
+        });
+    }
+    // 4. Paths — "update the key in /opt/fleetcrown/runner/.env" was invented
+    //    wholesale, and its specificity is what made it convincing.
+    for (const p of pathClaims(answer)) {
+        if (evidence.includes(norm(p)))
+            continue;
+        violations.push({
+            kind: "novel-path",
+            text: p,
+            detail: `The path "${p}" is not in any record. Do not state file locations you were not given.`,
+        });
+    }
+    return { ok: violations.length === 0, violations };
 }
 /**
  * Turn violations into a repair instruction. One cheap retry with this appended
@@ -354,11 +366,11 @@ function verifyAnswer(input) {
  * delete claims it cannot support.
  */
 function buildRepairPrompt(violations, noBasisPhrase) {
-  return [
-    "Your previous answer contained claims not supported by the records. Rewrite it.",
-    "",
-    ...violations.map((v) => `- ${v.detail}`),
-    "",
-    `Remove every unsupported claim. Where removing one empties a requested item, write "${noBasisPhrase}" for that item instead of substituting something else. Keep everything that was supported, unchanged.`,
-  ].join("\n");
+    return [
+        "Your previous answer contained claims not supported by the records. Rewrite it.",
+        "",
+        ...violations.map((v) => `- ${v.detail}`),
+        "",
+        `Remove every unsupported claim. Where removing one empties a requested item, write "${noBasisPhrase}" for that item instead of substituting something else. Keep everything that was supported, unchanged.`,
+    ].join("\n");
 }

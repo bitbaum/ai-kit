@@ -49,24 +49,24 @@ exports.NOT_RECORDED = "<not recorded>";
  * point. Do not "clean up" this list by deleting the empty ones.
  */
 exports.FACT_KINDS = {
-  person: ["name", "affiliation", "role", "how_we_met", "last_interaction", "notes", "channels"],
-  project: ["name", "status", "stack", "description", "latest_dev_log", "repo"],
-  goal: ["title", "project", "progress", "target_date", "last_updated"],
-  habit: ["title", "frequency", "current_streak", "last_checked"],
-  commitment: ["title", "due", "counterparty", "status"],
-  event: ["name", "type", "deadline", "url", "status"],
-  // Humans the operator delegates to, and the work handed to them. Separate
-  // from `person`/`commitment` because the questions are different: a crew
-  // member is asked what they are good FOR, an assignment is asked who has it
-  // and whether they said yes.
-  crew_member: ["name", "role", "skills", "engagement", "rate", "availability", "open_assignments"],
-  assignment: ["title", "assignee", "status", "due", "fee", "why"],
-  document: ["title", "source", "excerpt"],
-  pending_action: ["title", "type", "reasoning", "proposed_on", "id"],
+    person: ["name", "affiliation", "role", "how_we_met", "last_interaction", "notes", "channels"],
+    project: ["name", "status", "stack", "description", "latest_dev_log", "repo"],
+    goal: ["title", "project", "progress", "target_date", "last_updated"],
+    habit: ["title", "frequency", "current_streak", "last_checked"],
+    commitment: ["title", "due", "counterparty", "status"],
+    event: ["name", "type", "deadline", "url", "status"],
+    // Humans the operator delegates to, and the work handed to them. Separate
+    // from `person`/`commitment` because the questions are different: a crew
+    // member is asked what they are good FOR, an assignment is asked who has it
+    // and whether they said yes.
+    crew_member: ["name", "role", "skills", "engagement", "rate", "availability", "open_assignments"],
+    assignment: ["title", "assignee", "status", "due", "fee", "why"],
+    document: ["title", "source", "excerpt"],
+    pending_action: ["title", "type", "reasoning", "proposed_on", "id"],
 };
 /** Field list for a kind; unknown kinds fall back to whatever the fact carries. */
 function declaredFields(kind, fallback = []) {
-  return exports.FACT_KINDS[kind] ?? fallback;
+    return exports.FACT_KINDS[kind] ?? fallback;
 }
 /**
  * Build a Fact with every declared field present. Values not supplied become
@@ -75,29 +75,29 @@ function declaredFields(kind, fallback = []) {
  * FACT_KINDS, otherwise the registry stops describing what the model sees.
  */
 function makeFact(input) {
-  const keys = declaredFields(input.kind, Object.keys(input.values ?? {}));
-  const fields = {};
-  for (const key of keys) {
-    const raw = input.values?.[key];
-    const trimmed = typeof raw === "string" ? raw.trim() : raw;
-    fields[key] = trimmed ? String(trimmed) : null;
-  }
-  return {
-    id: "",
-    kind: input.kind,
-    subject: input.subject,
-    source: input.source,
-    fields,
-    ...(input.similarity !== undefined ? { similarity: input.similarity } : {}),
-  };
+    const keys = declaredFields(input.kind, Object.keys(input.values ?? {}));
+    const fields = {};
+    for (const key of keys) {
+        const raw = input.values?.[key];
+        const trimmed = typeof raw === "string" ? raw.trim() : raw;
+        fields[key] = trimmed ? String(trimmed) : null;
+    }
+    return {
+        id: "",
+        kind: input.kind,
+        subject: input.subject,
+        source: input.source,
+        fields,
+        ...(input.similarity !== undefined ? { similarity: input.similarity } : {}),
+    };
 }
 /** Stamp sequential citation ids. Call once, after assembling the final set. */
 function assignFactIds(facts) {
-  return facts.map((f, i) => ({ ...f, id: `F${i + 1}` }));
+    return facts.map((f, i) => ({ ...f, id: `F${i + 1}` }));
 }
 /** Every citation handle in a fact set — the only legal citations in an answer. */
 function factIds(facts) {
-  return new Set(facts.map((f) => f.id));
+    return new Set(facts.map((f) => f.id));
 }
 /**
  * Render facts for the model. One block per record, every declared field on its
@@ -115,16 +115,15 @@ function factIds(facts) {
  * hallucinates roles, over a field list it reports `<not recorded>`.
  */
 function renderFacts(facts) {
-  if (facts.length === 0) return "";
-  return facts
-    .map((f) => {
-      const head = `[${f.id}] ${f.kind} — ${f.subject}  (${f.source})`;
-      const body = Object.entries(f.fields).map(
-        ([k, v]) => `     ${k}: ${v ?? exports.NOT_RECORDED}`,
-      );
-      return [head, ...body].join("\n");
+    if (facts.length === 0)
+        return "";
+    return facts
+        .map((f) => {
+        const head = `[${f.id}] ${f.kind} — ${f.subject}  (${f.source})`;
+        const body = Object.entries(f.fields).map(([k, v]) => `     ${k}: ${v ?? exports.NOT_RECORDED}`);
+        return [head, ...body].join("\n");
     })
-    .join("\n\n");
+        .join("\n\n");
 }
 /**
  * Which declared fields are unrecorded across the set, as
@@ -133,11 +132,12 @@ function renderFacts(facts) {
  * context rather than being a standing abstraction the model may ignore.
  */
 function unrecordedFields(facts) {
-  const gaps = new Set();
-  for (const f of facts) {
-    for (const [k, v] of Object.entries(f.fields)) {
-      if (v === null) gaps.add(`${f.kind}.${k}`);
+    const gaps = new Set();
+    for (const f of facts) {
+        for (const [k, v] of Object.entries(f.fields)) {
+            if (v === null)
+                gaps.add(`${f.kind}.${k}`);
+        }
     }
-  }
-  return [...gaps].sort();
+    return [...gaps].sort();
 }
