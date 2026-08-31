@@ -44,12 +44,7 @@ export type ToolProtocol = "native" | "text" | "none" | "unprobed";
 export type ModelTier = "free" | "economy" | "standard" | "premium";
 
 export type ModelCapability =
-  | "text"
-  | "vision"
-  | "function_calling"
-  | "json_mode"
-  | "streaming"
-  | "transcribe";
+  "text" | "vision" | "function_calling" | "json_mode" | "streaming" | "transcribe";
 
 export type ModelEntry = {
   /** The id sent on the wire — exactly as the vendor expects it. */
@@ -159,8 +154,7 @@ export function defineRegistry(entries: ModelEntry[]): Registry {
       }
       return hit;
     },
-    idsForVendor: (vendor: string) =>
-      frozen.filter((e) => e.vendor === vendor).map((e) => e.id),
+    idsForVendor: (vendor: string) => frozen.filter((e) => e.vendor === vendor).map((e) => e.id),
     vendors: () => [...new Set(frozen.map((e) => e.vendor))],
     freeEntries: () => frozen.filter((e) => !e.paid),
     paidEntries: () => frozen.filter((e) => e.paid),

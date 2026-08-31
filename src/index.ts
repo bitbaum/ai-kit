@@ -122,4 +122,3 @@ export {
 // Same dependency, same version, nothing extra to install — a consumer just
 // stops paying for the half it does not use. That is what subpath exports are
 // for, and collapsing them into the root threw the benefit away.
-

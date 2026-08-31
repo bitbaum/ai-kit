@@ -67,7 +67,9 @@ export function classifyRateLimit(body: string): RateLimitKind {
   // Requests-per-day is the same situation as tokens-per-day: nothing the caller
   // does before the reset can help, so it gets the same treatment.
   if (/per day|\bTPD\b|\bRPD\b/i.test(body)) return "daily";
-  return /request too large|reduce your message size|reduce the length/i.test(body) ? "size" : "capacity";
+  return /request too large|reduce your message size|reduce the length/i.test(body)
+    ? "size"
+    : "capacity";
 }
 
 /**
