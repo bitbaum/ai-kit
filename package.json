@@ -74,14 +74,17 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.js",
     "check:catalog": "npm run build && node scripts/check-catalog.mjs",
-    "verify": "npm run lint && npm run typecheck && npm run build && npm test",
-    "prepare": "npm run build"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm test",
+    "prepare": "npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^22.10.2",
     "eslint": "^9.39.5",
     "globals": "^15.15.0",
+    "prettier": "3.9.6",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.67.0"
   },
