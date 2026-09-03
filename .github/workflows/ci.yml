@@ -26,7 +26,8 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          # pnpm 11 requires Node >= 22.13; engines still allow >= 20 for consumers.
+          node-version: 22
           cache: pnpm
 
       - name: Install
