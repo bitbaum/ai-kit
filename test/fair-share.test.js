@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { fairShare, utcDayElapsed, utcDayKey, DAY_SECONDS, DEFAULT_BURST } from "ai-kit";
+import { fairShare, utcDayElapsed, utcDayKey, DAY_SECONDS, DEFAULT_BURST } from "@bitbaum/ai-kit";
 
 const TURN = 20_000;
 const NOON = 0.5;

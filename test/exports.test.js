@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as pkg from "ai-kit";
+import * as pkg from "@bitbaum/ai-kit";
 
 test("the package exports its public surface through the exports map", () => {
   const expected = [
@@ -54,7 +54,7 @@ test("the package exports its public surface through the exports map", () => {
  * package at one version. What changed is WHERE from.
  */
 test("form filling is reachable from the package, so one install covers it", async () => {
-  const forms = await import("ai-kit/forms");
+  const forms = await import("@bitbaum/ai-kit/forms");
   for (const name of ["runFormAssist", "defineFields", "mergeValues", "sanitizeValues"]) {
     assert.equal(typeof forms[name], "function", `missing export: ${name}`);
   }
@@ -65,7 +65,7 @@ test("form filling is reachable from the package, so one install covers it", asy
  * a scar behind it.
  *
  * For one release the root re-exported forms, so `import { freeChain } from
- * 'ai-kit'` dragged `ai-forms` in behind it. That package is ESM-only, so the
+ * '@bitbaum/ai-kit'` dragged `ai-forms` in behind it. That package is ESM-only, so the
  * first adopting app's Jest run — which executes CJS — died on `Unexpected token
  * 'export'` inside a module it had never asked for. The remedy would have been a
  * `transformIgnorePatterns` entry in that app, then the next, then every app
@@ -75,7 +75,7 @@ test("form filling is reachable from the package, so one install covers it", asy
  * would look harmless in review and break the next consumer the same way.
  */
 test("the root does NOT drag the form layer in behind the chain", async () => {
-  const pkg = await import("ai-kit");
+  const pkg = await import("@bitbaum/ai-kit");
   assert.equal(typeof pkg.freeChain, "function", "the chain belongs at the root");
   for (const name of ["runFormAssist", "defineFields"]) {
     assert.equal(
@@ -87,11 +87,11 @@ test("the root does NOT drag the form layer in behind the chain", async () => {
 });
 
 test("./forms resolves through the exports map", async () => {
-  const forms = await import("ai-kit/forms");
+  const forms = await import("@bitbaum/ai-kit/forms");
   assert.equal(typeof forms.runFormAssist, "function");
 });
 
 test("./server resolves, and is what the most-adopted package actually ships", async () => {
-  const server = await import("ai-kit/server");
+  const server = await import("@bitbaum/ai-kit/server");
   assert.equal(typeof server.createFormAssistHandler, "function");
 });

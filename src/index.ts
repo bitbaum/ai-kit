@@ -115,9 +115,9 @@ export {
 //
 // One install is still the promise, and the exports map already keeps it:
 //
-//     import { freeChain } from "ai-kit";          // the chain
-//     import { defineFields } from "ai-kit/forms"; // form filling
-//     import { useAssist } from "ai-kit/react";    // the React hook
+//     import { freeChain } from "@bitbaum/ai-kit";          // the chain
+//     import { defineFields } from "@bitbaum/ai-kit/forms"; // form filling
+//     import { useAssist } from "@bitbaum/ai-kit/react";    // the React hook
 //
 // Same dependency, same version, nothing extra to install — a consumer just
 // stops paying for the half it does not use. That is what subpath exports are

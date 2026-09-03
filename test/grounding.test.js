@@ -14,7 +14,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { makeFact, assignFactIds, renderFacts, verifyAnswer, NOT_RECORDED } from "ai-kit/grounding";
+import {
+  makeFact,
+  assignFactIds,
+  renderFacts,
+  verifyAnswer,
+  NOT_RECORDED,
+} from "@bitbaum/ai-kit/grounding";
 
 const elena = () =>
   assignFactIds([

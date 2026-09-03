@@ -43,7 +43,7 @@ So the four decisions ship together now. Adding AI is one install.
 ### Which model — a list, never a pin
 
 ```ts
-import { freeChain, usableChain, chainFrom } from 'ai-kit';
+import { freeChain, usableChain, chainFrom } from '@bitbaum/ai-kit';
 
 const providers = freeChain('MYAPP');               // groq → openrouter
 const links = usableChain(providers, process.env);   // drops vendors with no key
@@ -65,7 +65,7 @@ next to a single-shot caller in an app this package's `freeChain` had already
 saved from a retired model — the list existed, and nothing tried link two.
 
 ```ts
-import { tryChain, createHealthTracker } from 'ai-kit';
+import { tryChain, createHealthTracker } from '@bitbaum/ai-kit';
 
 const llmHealth = createHealthTracker(); // one per process; see below
 
@@ -100,7 +100,7 @@ was answering a friendly, silent, hardcoded apology. HTTP 200 is not evidence.
 ### Still there? — catch a retirement before a user does
 
 ```ts
-import { freeChain, checkCatalog, hasRot, catalogReport } from 'ai-kit';
+import { freeChain, checkCatalog, hasRot, catalogReport } from '@bitbaum/ai-kit';
 
 const verdicts = await checkCatalog(freeChain('MYAPP'));
 if (hasRot(verdicts)) console.warn(catalogReport(verdicts));
@@ -119,7 +119,7 @@ retired and invents an outage someone then acts on.
 ### Too fast? — the three kinds of 429
 
 ```ts
-import { classifyRateLimit, rateLimitMessage } from 'ai-kit';
+import { classifyRateLimit, rateLimitMessage } from '@bitbaum/ai-kit';
 
 classifyRateLimit(body); // 'capacity' | 'size' | 'daily'
 ```
@@ -134,7 +134,7 @@ Telling someone whose daily quota is gone to try again in 20 minutes is a lie.
 ### Who gets it — fair shares of a free tier
 
 ```ts
-import { fairShare, utcDayElapsed } from 'ai-kit';
+import { fairShare, utcDayElapsed } from '@bitbaum/ai-kit';
 ```
 
 A free tier grants roughly 100k tokens **per day for an entire org**, and one
@@ -155,9 +155,9 @@ is room.
 ### Filling forms — from prose, then by talking to it
 
 ```ts
-import { runFormAssist } from 'ai-kit/forms';
-import { useAiForm } from 'ai-kit/react';
-import { createFormAssistHandler } from 'ai-kit/server';
+import { runFormAssist } from '@bitbaum/ai-kit/forms';
+import { useAiForm } from '@bitbaum/ai-kit/react';
+import { createFormAssistHandler } from '@bitbaum/ai-kit/server';
 ```
 
 Re-exported from [`ai-forms`](https://github.com/bitbaum/ai-forms), which

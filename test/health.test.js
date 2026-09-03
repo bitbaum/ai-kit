@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createHealthTracker } from "ai-kit";
+import { createHealthTracker } from "@bitbaum/ai-kit";
 
 test("starts unknown — no evidence either way yet", () => {
   const tracker = createHealthTracker();

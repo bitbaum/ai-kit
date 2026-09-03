@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { checkCatalog, hasRot, deadProviders, catalogReport, withEnvPrefix } from "ai-kit";
+import { checkCatalog, hasRot, deadProviders, catalogReport, withEnvPrefix } from "@bitbaum/ai-kit";
 
 const provider = (id, models, keyEnv) =>
   withEnvPrefix("T", { id, baseUrl: `https://${id}.test/v1`, keyEnv, models, dailyTokens: 1000 });
