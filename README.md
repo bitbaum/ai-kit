@@ -210,7 +210,7 @@ model catalogue to do it.
 ## Development
 
 ```bash
-npm run verify   # lint + typecheck + build + test
+pnpm run verify  # lint + typecheck + build + test
 ```
 
 MIT.

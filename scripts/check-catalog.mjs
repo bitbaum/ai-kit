@@ -9,7 +9,7 @@
  * Zero tokens: one GET /models per provider. Cheap enough to run on a schedule,
  * which is the only kind of check that catches rot without someone remembering.
  *
- * Run: node scripts/check-catalog.mjs        (npm run check:catalog)
+ * Run: node scripts/check-catalog.mjs        (pnpm run check:catalog)
  * Needs GROQ_API_KEY / OPENROUTER_API_KEY for the providers you want checked;
  * a provider with no key is reported UNCHECKED, which is not a pass.
  *
