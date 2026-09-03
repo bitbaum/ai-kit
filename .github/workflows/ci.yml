@@ -1,4 +1,4 @@
-# GOLDEN CI FLOOR — npm. See dotfiles/templates/ci/README.md.
+# GOLDEN CI FLOOR — pnpm. See dotfiles/templates/ci/README.md.
 name: CI
 
 on:
@@ -20,20 +20,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # pnpm version comes from "packageManager" in package.json (SSOT);
+      # pnpm/action-setup@v6 errors if both are specified.
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
-          cache: npm
+          # pnpm 11 requires Node >= 22.13; engines still allow >= 20 for consumers.
+          node-version: 22
+          cache: pnpm
 
       - name: Install
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # SSOT: "verified" is defined ONCE, in package.json `verify`
       # (= build + test), and run identically here and locally. Change the
       # checks in one place, not two.
       #
-      # `npm test` here also exercises the package's `exports` map, because the
+      # `pnpm test` here also exercises the package's `exports` map, because the
       # tests import it BY NAME rather than reaching into dist/ — so a broken
       # exports/files map fails here rather than at a consumer's install.
       - name: Verify
-        run: npm run verify
+        run: pnpm run verify

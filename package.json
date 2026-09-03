@@ -28,6 +28,7 @@
   ],
   "type": "module",
   "sideEffects": false,
+  "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=20"
   },
@@ -73,9 +74,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.js",
-    "check:catalog": "npm run build && node scripts/check-catalog.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm test",
-    "prepare": "npm run build",
+    "check:catalog": "pnpm run build && node scripts/check-catalog.mjs",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build && pnpm test",
+    "prepare": "pnpm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
