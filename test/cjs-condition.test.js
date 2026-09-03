@@ -18,8 +18,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-import * as esmGrounding from "ai-kit/grounding";
-import * as esmRegistry from "ai-kit/registry";
+import * as esmGrounding from "@bitbaum/ai-kit/grounding";
+import * as esmRegistry from "@bitbaum/ai-kit/registry";
 
 const require = createRequire(import.meta.url);
 
@@ -30,8 +30,8 @@ test("ESM import serves the grounding surface", () => {
 });
 
 test("CJS require serves the SAME surface through the require condition", () => {
-  const g = require("ai-kit/grounding");
-  const r = require("ai-kit/registry");
+  const g = require("@bitbaum/ai-kit/grounding");
+  const r = require("@bitbaum/ai-kit/registry");
   assert.equal(typeof g.verifyAnswer, "function");
   assert.equal(g.NOT_RECORDED, "<not recorded>");
   assert.equal(typeof r.defineRegistry, "function");

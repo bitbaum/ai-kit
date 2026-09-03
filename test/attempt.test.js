@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { tryChain, ChainExhaustedError, createHealthTracker } from "ai-kit";
+import { tryChain, ChainExhaustedError, createHealthTracker } from "@bitbaum/ai-kit";
 
 function link(providerId, model) {
   return {

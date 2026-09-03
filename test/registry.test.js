@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { defineRegistry, freeOnly, toolCapable } from "ai-kit/registry";
+import { defineRegistry, freeOnly, toolCapable } from "@bitbaum/ai-kit/registry";
 
 const ENTRIES = [
   {

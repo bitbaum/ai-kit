@@ -12,7 +12,7 @@ import {
   dayCapacityTokens,
   usableChain,
   chainFrom,
-} from "ai-kit";
+} from "@bitbaum/ai-kit";
 
 const CHAIN = freeChain("LOKI");
 
