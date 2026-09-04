@@ -6,7 +6,7 @@ what to do when you're going too fast, how to share a free tier fairly between
 users, and how to fill a form from plain language.
 
 ```bash
-npm install ai-kit
+pnpm add @bitbaum/ai-kit
 ```
 
 ---
@@ -165,7 +165,7 @@ stays its own package — it works, four apps run it, and it is useful well outs
 this fleet. Swallowing it would have broken those four for the sake of a filing
 system.
 
-**Note the subpath.** Form filling is at `ai-kit/forms`, not at the root. For one
+**Note the subpath.** Form filling is at `@bitbaum/ai-kit/forms`, not at the root. For one
 release it was both, and the first app to adopt the merged package paid for it:
 `ai-forms` is ESM-only, so importing the *chain* from the root dragged the forms
 package in behind it and the app's Jest run — which executes CJS — died inside a
@@ -173,8 +173,8 @@ module it never asked for. One install is still the whole promise; the exports
 map is what keeps it, while letting a server that only wants a provider chain
 stop paying for a form library.
 
-React lives on its own subpath and is an **optional** peer, so importing `ai-kit`
-on a server never pulls in a UI library.
+React lives on its own subpath and is an **optional** peer, so importing
+`@bitbaum/ai-kit` on a server never pulls in a UI library.
 
 ---
 
