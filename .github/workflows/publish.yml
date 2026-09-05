@@ -20,7 +20,7 @@ jobs:
       # was built by this workflow from this commit.
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # pnpm version comes from "packageManager" in package.json (SSOT).
       - uses: pnpm/action-setup@v6
