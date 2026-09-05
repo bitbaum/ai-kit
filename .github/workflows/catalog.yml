@@ -1,0 +1,66 @@
+# Are the DEFAULT model pins still real?
+#
+# `scripts/check-catalog.mjs` has said since it was written that it is "cheap
+# enough to run on a schedule, which is the only kind of check that catches rot
+# without someone remembering". Nothing ran it. The rot it exists to catch then
+# happened anyway: on 2026-08-25 four of nine default pins were already retired,
+# including BOTH Groq models — so `freeChain()` led with a vendor that could not
+# answer, and every consumer inherited it. FleetCrown, on the same dead id
+# without a fallback, was silently down for eight days.
+#
+# A detector nobody runs is a comment. This runs it.
+name: Catalog
+
+on:
+  schedule:
+    # Daily, early UTC. Rot is not urgent within a day, but it IS invisible:
+    # nothing else in this repo's CI makes a network call to a vendor.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The script exits 1 only on CONFIRMED rot, and exits 0 when it could not
+      # check — correct for a local or offline run, wrong for this one. A
+      # scheduled probe whose whole job is looking is FAILING when it saw
+      # nothing, so the two outcomes are separated here: the script decides
+      # "rotted", the step below decides "blind".
+      - name: Check the default pins against the live catalogs
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -o pipefail
+          pnpm run check:catalog 2>&1 | tee catalog.log
+
+      # Guard against the failure this workflow is most likely to have: running
+      # green for months with no keys configured, reporting every provider
+      # UNCHECKED, and being mistaken for protection.
+      - name: Refuse to pass while blind
+        if: always()
+        run: |
+          # `catalogReport` prints one "  ok   <provider>/<model>" line per id it
+          # actually confirmed against a live catalogue. Zero of them means every
+          # provider was UNCHECKED — the script exits 0 there (right for an
+          # offline dev run, wrong for a scheduled probe), so the distinction
+          # between "verified clean" and "saw nothing" is drawn here.
+          verified=$(grep -c '^  ok   ' catalog.log || true)
+          if [ "$verified" -gt 0 ]; then
+            echo "$verified id(s) confirmed present at their vendor."
+            exit 0
+          fi
+          echo "::error::Nothing could be checked — no provider catalogue was readable, so this workflow verified NOTHING. Set GROQ_API_KEY / OPENROUTER_API_KEY in Settings → Secrets → Actions, or delete this workflow rather than leave a gate that cannot see."
+          exit 1
