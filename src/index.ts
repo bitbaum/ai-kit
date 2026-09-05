@@ -34,13 +34,20 @@
  * retired model id — the exact failure the `chain` and `catalog` modules exist
  * to prevent. "Ration" described one of five modules and buried the other four.
  *
- * STILL NOT INCLUDED: an HTTP client. Every app has its own calling conventions,
- * retries and logging, and replacing those is a rewrite rather than an adoption.
- * This supplies the decisions; the caller keeps the fetch — `tryChain` is an
- * orchestrator, not a client: the caller's own `attempt` function makes the
- * actual request. That rule is under review — `ai-forms`, the most-adopted
- * package in this fleet, is the one that broke it by shipping a route factory
- * and a hook.
+ * NOW INCLUDED: an HTTP client. `complete()` makes the call.
+ *
+ * The old rule was "every app has its own calling conventions, and replacing
+ * those is a rewrite rather than an adoption" — accurate about the fleet, and
+ * it protected the very duplication it described. The conventions differed
+ * because nothing ever offered to own them. Measured 2026-09-05: 8 hand-rolled
+ * clients in service, 2 of which tell the three kinds of 429 apart, while this
+ * package explained the distinction to the 2 repos that imported it.
+ * `ai-forms` — adopted by 5 — is not better code, it is code that does the job
+ * rather than advising on it. See `complete.ts` for the full argument.
+ *
+ * `tryChain` remains for a caller with a genuinely unusual request to make: it
+ * walks the chain and lets the caller keep the fetch. `complete` is the answer
+ * for everyone else.
  */
 
 export {
@@ -74,6 +81,16 @@ export {
   ChainExhaustedError,
   tryChain,
 } from "./attempt.js";
+
+export {
+  type ChatMessage,
+  type ToolCall,
+  type CompleteOptions,
+  type CompleteResult,
+  LinkFailure,
+  complete,
+  linkId,
+} from "./complete.js";
 
 export {
   type HealthStatus,
