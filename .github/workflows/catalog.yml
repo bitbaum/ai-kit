@@ -64,3 +64,50 @@ jobs:
           fi
           echo "::error::Nothing could be checked — no provider catalogue was readable, so this workflow verified NOTHING. Set GROQ_API_KEY / OPENROUTER_API_KEY in Settings → Secrets → Actions, or delete this workflow rather than leave a gate that cannot see."
           exit 1
+
+  # A pin existing in a catalogue is not the same as the engine being able to
+  # USE it. Every other check in this repo is hermetic — `test/` drives an
+  # injected fetch — so all of them can be green while the package cannot
+  # complete one real turn. This package is becoming the single engine behind
+  # every app in the fleet, which converts its own bugs into a simultaneous
+  # fleet-wide outage; "the logic is right" stops being a sufficient claim.
+  #
+  # Scheduled, never a PR gate: it calls other people's servers, so as a
+  # required check it would redden pull requests for a vendor's 500 and train
+  # everyone to ignore red.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Complete one real turn against the live free tier
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          # `|| status=$?` is load-bearing: Actions runs this with `bash -e`, so
+          # a bare failing command aborts the step before the exit code can be
+          # read, and the "no keys" case below would never be reachable.
+          status=0
+          node scripts/smoke.mjs || status=$?
+          # 2 = no keys, which is "could not look", not "works" and not "broken".
+          # Treated as a failure here for the same reason the catalog job refuses
+          # to pass while blind: a scheduled probe that looked at nothing has
+          # told us nothing, and green would be a lie.
+          if [ $status -eq 2 ]; then
+            echo "::error::No provider keys — the smoke attempted nothing."
+            exit 1
+          fi
+          exit $status
