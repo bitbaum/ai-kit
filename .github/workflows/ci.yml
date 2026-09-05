@@ -26,8 +26,8 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          # pnpm 11 requires Node >= 22.13; engines still allow >= 20 for consumers.
-          node-version: 22
+          # Node 24 is the fleet toolchain (pnpm 11 needs >= 22.13); engines still allow >= 20 for consumers.
+          node-version: 24
           cache: pnpm
 
       - name: Install
