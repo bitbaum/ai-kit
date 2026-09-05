@@ -103,6 +103,17 @@ export interface CompleteOptions {
   env?: Env;
   health?: HealthTracker;
   signal?: AbortSignal;
+  /**
+   * Set this GENEROUSLY, or a healthy model looks dead.
+   *
+   * The default chain leads with reasoning models, which spend this budget
+   * thinking before emitting a visible token. Set it too low and the vendor
+   * returns 200 with empty content — which this module correctly treats as a
+   * failure and demotes, so a small `maxTokens` silently walks the whole chain
+   * and reports every link broken. Measured 2026-09-05: groq/openai/gpt-oss-20b
+   * answered EMPTY at 16 and answered correctly at 256, for the same one-word
+   * question.
+   */
   maxTokens?: number;
   temperature?: number;
   /** Tool definitions in the OpenAI shape; passed through untouched. */
