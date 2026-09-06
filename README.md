@@ -58,6 +58,95 @@ the same org-wide daily budget, so when the day runs dry every link in that
 via a text tool protocol, not native `tool_calls`. A native-only client would
 have silently lost most of the chain.
 
+### Make the call — `complete()` owns the fetch
+
+```ts
+import { complete, freeChain, usableChain, createHealthTracker } from '@bitbaum/ai-kit';
+
+export const llmHealth = createHealthTracker();
+const chain = usableChain(freeChain('MYAPP'), process.env);
+
+const { text, id } = await complete({
+  chain,
+  health: llmHealth,
+  maxTokens: 500,
+  messages: [{ role: 'user', content: 'Summarise this in one line.' }],
+});
+```
+
+For four releases this package shipped the *decisions* and told you to keep the
+fetch. The rule read well and it was wrong: measured 2026-09-05, this fleet ran
+**eight** hand-rolled clients, **two** of which told the three kinds of 429
+apart — while `ai-forms`, which ships a working route factory, had more than
+twice this package's adoption. A package that hands you a working call gets
+installed; one that hands you advice about calls does not.
+
+`complete()` is the chain walk plus the request, and it carries the parts that
+kept getting left out of the hand-rolled ones:
+
+- a **200 with empty content is a failure**, not an answer — reasoning models
+  and some vendors return exactly that, and every client that read
+  `choices[0].message.content || ''` shipped the empty string to a user;
+- a **daily** 429 marks the whole vendor dead for the walk, instead of trying
+  its other models against the same exhausted org-wide budget;
+- a **size** 429 ends the walk rather than demoting to a *smaller* ceiling,
+  which is strictly worse;
+- the vendor's response body survives into the error, so an exhausted day is
+  distinguishable from a momentary burst in a log.
+
+**`maxTokens` has a floor, and it is higher than you think.** The chain leads
+with reasoning models, which spend the budget on hidden thinking before emitting
+a visible token: `groq/openai/gpt-oss-20b` answered *empty* at 16 and correctly
+at 256 for the same one-word question. A mean budget makes a healthy model look
+dead.
+
+`tryChain` stays for a caller with a genuinely unusual request to make.
+
+### Does it work RIGHT NOW? — a probe, not a guess
+
+```ts
+// app/api/health/ai/route.ts — Next App Router, Hono, Deno and Bun all take
+// this shape directly.
+import { createAiHealthHandler, freeChain, usableChain } from '@bitbaum/ai-kit';
+import { llmHealth } from '@/lib/llm-health';
+
+const handler = createAiHealthHandler({
+  chain: usableChain(freeChain('MYAPP'), process.env),
+  health: llmHealth,
+  secret: process.env.AI_PROBE_SECRET,
+});
+
+export const GET = handler;
+```
+
+```
+GET /api/health/ai                          free. What happened last time.
+GET /api/health/ai?probe=1  + the secret    makes a real call. 200 or 503.
+```
+
+**Why a probe and not a passive read.** Absence of failure is not evidence of
+success. A tracker that has recorded nothing looks identical whether the chain
+is perfect or every key is missing — and straight after a deploy that is exactly
+the state it is in. Observed converting the first app: the deploy was green, the
+bundle provably held the new code, both keys were present, `/api/health`
+returned 200, and `llm.status` was `"unknown"`. Every available signal said
+"probably fine" and none said "works". The only paths that would have answered
+were an admin-authenticated form and two cron jobs that **email real users** —
+verifying a deploy must never require spamming somebody.
+
+**Why it is gated and cached.** A probe spends real tokens from a daily budget
+shared with the app's actual features, so an ungated one on a health route is a
+self-inflicted outage: a monitor polling every 30s would drain the allowance and
+take the AI features down with it. So a probe runs only on `?probe=1` **and**
+with the secret, a *success* is cached for 10 minutes (returned with `cached`
+and its age, because a nine-minute-old success is a different claim from a fresh
+one), and a **failure is never cached** — the whole point is the truth about
+right now.
+
+With no secret configured the route answers **501**, not an open probe: an app
+that forgets to set one gets a route that cannot spend money, rather than one
+that can.
+
 ### Is it up? — walk the chain, and know when none of it worked
 
 A chain nobody walks is a list, not a fallback. This was found sitting unused
@@ -79,7 +168,7 @@ const { text } = await tryChain(chain, {
 });
 ```
 
-No HTTP client here either — `attempt` makes the real request; `tryChain` only
+`attempt` makes the real request; `tryChain` only
 decides which link goes next and throws `ChainExhaustedError` (naming every
 link's failure, not just the last) when none of them work.
 
@@ -180,14 +269,11 @@ React lives on its own subpath and is an **optional** peer, so importing
 
 ## What it deliberately does not ship
 
-**An HTTP client.** Every app has its own calling conventions, retries and
-logging, and replacing those is a rewrite rather than an adoption. This supplies
-the decisions; you keep the fetch.
-
-That rule is under review, and honestly. `ai-forms` is the most-adopted package
-in this fleet and it is the one that broke the rule, by shipping a route factory
-and a React hook. A package that hands you a working route gets installed; one
-that hands you advice about routes does not.
+**~~An HTTP client.~~** It ships one now — see [`complete()`](#make-the-call--complete-owns-the-fetch).
+The old rule ("every app has its own calling conventions, and replacing those is
+a rewrite rather than an adoption") described this fleet's duplication
+accurately and then protected it: the conventions differed because nothing had
+ever offered to own them.
 
 **Model values.** Which ids are free, which are billed, and which your account
 may use are properties of *your* deployment. Centralise the rule, assert it
