@@ -190,6 +190,42 @@ test("resolveChain is read at PROBE time, so a DB-configured chain is never stal
   assert.equal(resolves, 2);
 });
 
+test("resolveChain may carry the ENV too — keys that move with the chain", async () => {
+  let authorization;
+  const probe = createLivenessProbe({
+    // Built with NO key. An admin screen that stores a per-provider key
+    // alongside the model is the ordinary case, and reading credentials from
+    // an env captured at construction would report "no key" for a provider
+    // that is configured and working.
+    env: {},
+    fetchImpl: async (url, init) => {
+      authorization = init.headers.authorization;
+      return ok("blue");
+    },
+    resolveChain: () => ({ chain: chain(), env: { GROQ_API_KEY: "key-from-the-database" } }),
+  });
+
+  const r = await probe.run();
+
+  assert.equal(r.ok, true);
+  assert.equal(authorization, "Bearer key-from-the-database");
+});
+
+test("a bare Link[] resolver keeps the env the probe was built with", async () => {
+  let authorization;
+  const probe = createLivenessProbe({
+    env: ENV,
+    fetchImpl: async (url, init) => {
+      authorization = init.headers.authorization;
+      return ok("blue");
+    },
+    resolveChain: () => chain(),
+  });
+
+  assert.equal((await probe.run()).ok, true);
+  assert.equal(authorization, "Bearer g");
+});
+
 test("a cache hit does NOT resolve the chain — polling must not also poll the DB", async () => {
   let resolves = 0;
   const [fetchImpl] = counting(() => ok("blue"));
