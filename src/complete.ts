@@ -102,7 +102,33 @@ export interface CompleteOptions {
   model?: string;
   env?: Env;
   health?: HealthTracker;
+  /**
+   * The CALLER's cancellation, covering the whole walk. When this aborts, the
+   * walk stops — the caller has gone, so trying the next vendor on their behalf
+   * is work nobody is waiting for.
+   *
+   * Do not use this as a timeout. See `timeoutMs`.
+   */
   signal?: AbortSignal;
+  /**
+   * How long ONE link may take before it is abandoned and the next is tried.
+   * Default 30s. Set 0 to wait forever (not advised).
+   *
+   * Per LINK, and that is the whole point. A vendor that accepts the connection
+   * and then never answers is the most common partial outage there is, and it
+   * is the one a fallback chain is least able to survive: without a deadline,
+   * `await fetch` simply never returns and link two is never reached. A chain
+   * that cannot time out is not a fallback for the failure mode it most needs
+   * to cover.
+   *
+   * It is deliberately NOT the caller's `signal`. A caller who passes a 10s
+   * budget as `signal` has the first link spend all of it, and links two
+   * onward inherit a signal that is already aborted — so the "fallback" fails
+   * instantly and reports every vendor broken when only the first was slow.
+   * Handing each link its own budget is the only shape in which a deadline and
+   * a fallback can both be true.
+   */
+  timeoutMs?: number;
   /**
    * Set this GENEROUSLY, or a healthy model looks dead.
    *
@@ -162,6 +188,66 @@ export class LinkFailure extends Error {
     this.kind = init.kind;
     this.retryAfter = init.retryAfter;
   }
+}
+
+/**
+ * Long enough that a slow-but-working reasoning model finishes, short enough
+ * that a hung vendor does not hold a request open until something upstream
+ * gives up on it.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+interface LinkDeadline {
+  signal: AbortSignal | undefined;
+  /** True when THIS link's own clock fired, rather than the caller cancelling. */
+  readonly timedOut: boolean;
+  readonly timeoutMs: number;
+  /** Always call. An uncleared timer keeps the event loop alive. */
+  dispose(): void;
+}
+
+/**
+ * One link's deadline, composed with the caller's cancellation.
+ *
+ * Hand-rolled rather than `AbortSignal.any`, which landed in Node 20.3 — this
+ * package supports Node >= 20, and a helper that works on 20.0 costs eight
+ * lines while an engines bump costs every consumer a decision.
+ */
+function linkDeadline(caller: AbortSignal | undefined, timeoutMs: number): LinkDeadline {
+  if (timeoutMs <= 0) {
+    return { signal: caller, timedOut: false, timeoutMs, dispose() {} };
+  }
+
+  const controller = new AbortController();
+  const state = { timedOut: false };
+
+  // Deliberately NOT unref'd. It is tempting — a stray timer holding a process
+  // open is a real nuisance — but this one is always cleared in `dispose`, so
+  // there is nothing to save, and an unref'd timer stops firing whenever
+  // nothing else keeps the loop alive. That turns the deadline into a deadline
+  // that sometimes does not happen, which is worse than none at all.
+  const timer = setTimeout(() => {
+    state.timedOut = true;
+    controller.abort(new Error(`link timeout after ${timeoutMs}ms`));
+  }, timeoutMs);
+
+  const onCallerAbort = () => controller.abort(caller?.reason);
+  if (caller) {
+    if (caller.aborted) controller.abort(caller.reason);
+    else caller.addEventListener("abort", onCallerAbort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    get timedOut() {
+      return state.timedOut;
+    },
+    timeoutMs,
+    dispose() {
+      clearTimeout(timer);
+      caller?.removeEventListener("abort", onCallerAbort);
+    },
+  };
 }
 
 /** `provider/model` — the id worth logging, because the model alone does not say whose meter it drew on. */
@@ -230,18 +316,32 @@ async function callLink(
     ...options.extraBody,
   };
 
+  const deadline = linkDeadline(options.signal, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
   let res: Response;
   try {
     res = await doFetch(`${link.provider.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify(body),
-      signal: options.signal,
+      signal: deadline.signal,
     });
   } catch (error) {
     // A transport failure (DNS, TLS, abort) is not the vendor's answer, so it
     // carries no rate-limit kind — it demotes like any other link failure.
+    //
+    // Name a timeout as a timeout. "The operation was aborted" in a log is
+    // indistinguishable from a caller cancelling, and the two want opposite
+    // reactions from whoever reads it.
+    if (deadline.timedOut) {
+      throw new LinkFailure(
+        link,
+        `${linkId(link)}: no response within ${deadline.timeoutMs}ms — abandoned, trying the next link`,
+      );
+    }
     throw new LinkFailure(link, `${linkId(link)}: ${(error as Error).message}`);
+  } finally {
+    deadline.dispose();
   }
 
   const text = await res.text();
@@ -327,6 +427,12 @@ export async function complete(options: CompleteOptions): Promise<CompleteResult
       options.onLinkFailure?.(link, failure);
 
       if (failure.kind === "daily") deadProviders.add(link.provider.id);
+
+      // The caller cancelled — the request they were waiting on is gone. Walking
+      // the rest of the chain now would spend their daily budget on an answer
+      // nobody will read, and would report "every vendor failed" about vendors
+      // that were never asked.
+      if (options.signal?.aborted) break;
 
       // Stepping down after a size 429 reaches a model with a smaller ceiling —
       // strictly worse. Stop, and let the caller shorten the prompt.

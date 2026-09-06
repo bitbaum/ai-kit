@@ -118,6 +118,54 @@ test("a FAILURE is never cached — the point is the truth about right now", asy
   assert.equal(calls.n, 2);
 });
 
+// Slow on purpose: ~10s. It is the only shape that actually observes the
+// deadline. Asserting that the link merely RECEIVED a signal proves nothing —
+// `complete`'s own 30s default supplies one too, so such a test stays green
+// with the probe's tighter deadline deleted, which is precisely the mutation it
+// is supposed to catch. What distinguishes the two is WHEN the abort lands.
+test("a wedged vendor is abandoned on the PROBE's deadline, not complete's slower one", async () => {
+  const probe = createLivenessProbe({
+    chain: chain(),
+    env: ENV,
+    fetchImpl: async (url, init) =>
+      new Promise((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      }),
+  });
+
+  const started = Date.now();
+  const r = await probe.run();
+  const elapsed = Date.now() - started;
+
+  assert.equal(r.ok, false);
+  // A monitor asking "is the AI up?" has given up long before a chain of 30s
+  // links finishes being patient. A health route that takes a minute to say
+  // "down" has not answered — it has become a second outage.
+  assert.ok(elapsed >= 9_000, `gave up after only ${elapsed}ms — deadline far too eager`);
+  assert.ok(
+    elapsed < 20_000,
+    `took ${elapsed}ms — that is complete's 30s default, not the probe's`,
+  );
+  assert.match(r.failures[0], /no response within 10000ms/);
+});
+
+test("an explicit timeoutMs wins over the probe's default", async () => {
+  let seen;
+  const probe = createLivenessProbe({
+    chain: chain(),
+    env: ENV,
+    timeoutMs: 0,
+    fetchImpl: async (url, init) => {
+      seen = init.signal;
+      return ok("blue");
+    },
+  });
+
+  const r = await probe.run();
+  assert.equal(r.ok, true);
+  assert.equal(seen, undefined, "timeoutMs: 0 must reach complete and disable the deadline");
+});
+
 test("no keys is reported as SKIPPED, not as a working chain", async () => {
   const probe = createLivenessProbe({ chain: [], env: {}, fetchImpl: async () => ok("x") });
   const r = await probe.run();

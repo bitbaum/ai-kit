@@ -89,6 +89,16 @@ const DEFAULT_MIN_INTERVAL_MS = 10 * 60 * 1000;
  */
 const PROBE_MAX_TOKENS = 256;
 
+/**
+ * Tighter than `complete`'s 30s default, per link.
+ *
+ * A monitor asking "is the AI up?" gives up long before a chain of 30-second
+ * links has finished being patient — and a health route that takes a minute to
+ * answer "down" has not answered at all, it has just become a second outage.
+ * Ten seconds is far above the ~1s a healthy free-tier link measures.
+ */
+const PROBE_TIMEOUT_MS = 10_000;
+
 /** A question with one short right answer, cheap to ask and easy to sanity-check. */
 const PROBE_MESSAGES = [
   { role: "system" as const, content: "Answer with a single word, no punctuation." },
@@ -131,6 +141,7 @@ export function createLivenessProbe(options: LivenessOptions = {}): LivenessProb
       const started = now();
       try {
         const result = await complete({
+          timeoutMs: PROBE_TIMEOUT_MS,
           ...options,
           messages: PROBE_MESSAGES,
           maxTokens: PROBE_MAX_TOKENS,
