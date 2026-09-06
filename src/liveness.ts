@@ -40,7 +40,7 @@
  */
 
 import { complete, type CompleteOptions } from "./complete.js";
-import type { Link } from "./chain.js";
+import type { Link, Env } from "./chain.js";
 import { ChainExhaustedError } from "./attempt.js";
 import type { HealthTracker } from "./health.js";
 
@@ -85,9 +85,17 @@ export interface LivenessOptions extends Omit<
    * It is called only on a real probe, never on a cache hit, so a monitor
    * polling this route does not also poll the database.
    *
+   * Return `{ chain, env }` when the KEYS move with the chain — an admin
+   * screen that stores a per-provider key alongside the model is the ordinary
+   * case, and resolving links from the database while reading credentials from
+   * a `process.env` captured at construction would have the probe report "no
+   * key" for a provider that is configured and working. Returning a bare
+   * `Link[]` keeps whatever `env` the probe was built with.
+   *
    * Takes precedence over `chain` when both are given.
    */
-  resolveChain?: () => Link[] | Promise<Link[]>;
+  resolveChain?: () =>
+    Link[] | { chain: Link[]; env?: Env } | Promise<Link[] | { chain: Link[]; env?: Env }>;
   /** Injected for tests. Defaults to `Date.now`. */
   now?: () => number;
 }
@@ -159,12 +167,19 @@ export function createLivenessProbe(options: LivenessOptions = {}): LivenessProb
       try {
         // Resolved here, not at construction, and only on a real probe — so a
         // monitor polling this route does not also poll whatever backs it.
-        const chain = options.resolveChain ? await options.resolveChain() : options.chain;
+        const resolved = options.resolveChain ? await options.resolveChain() : options.chain;
+        const chain = Array.isArray(resolved) ? resolved : resolved?.chain;
+        // Only when the resolver supplied one. Otherwise the probe keeps the
+        // env it was built with, so a bare `Link[]` resolver behaves exactly
+        // as it did before this option grew a second shape.
+        const env =
+          !Array.isArray(resolved) && resolved?.env !== undefined ? resolved.env : options.env;
 
         const result = await complete({
           timeoutMs: PROBE_TIMEOUT_MS,
           ...options,
           chain,
+          env,
           messages: PROBE_MESSAGES,
           maxTokens: PROBE_MAX_TOKENS,
           temperature: 0,
