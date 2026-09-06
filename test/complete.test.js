@@ -275,3 +275,137 @@ test("`model` starts the chain at that link instead of the front", async () => {
 
   assert.deepEqual(calls, ["free"]);
 });
+
+// ─── Deadlines: the failure a fallback chain is least able to survive ────────
+//
+// A vendor that accepts the connection and then never answers is the most
+// common partial outage there is. Without a per-link deadline `await fetch`
+// simply never returns, link two is never reached, and the chain that exists
+// to survive an outage becomes the thing holding the request open.
+
+/**
+ * A wedged vendor: connection accepted, no answer, ever.
+ *
+ * `deadlines` records whether each link actually received one, and the tests
+ * assert on it AFTERWARDS rather than inside. Both details are load-bearing.
+ * Without a deadline `init.signal` is undefined, this helper throws instantly,
+ * the walk demotes, and a test that only checks "the next link served" passes
+ * having proved demotion rather than the deadline it is named for. Asserting
+ * in here would not fix that either — `complete` catches everything a link
+ * throws, so a failed assertion becomes just another demotion. A test that
+ * survives the mutation it claims to cover is not a gate.
+ */
+function hangs(init, deadlines) {
+  deadlines.push(Boolean(init.signal));
+  if (!init.signal) return Promise.reject(new Error("no deadline"));
+  return new Promise((_resolve, reject) => {
+    init.signal.addEventListener("abort", () => reject(new Error("This operation was aborted")), {
+      once: true,
+    });
+  });
+}
+
+test("a link that never answers is abandoned, and the NEXT link serves", async () => {
+  const calls = [];
+  const deadlines = [];
+  const result = await complete({
+    chain: chain(),
+    env: ENV,
+    timeoutMs: 40,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: async (url, init) => {
+      const model = JSON.parse(init.body).model;
+      calls.push(model);
+      if (model === "big") return hangs(init, deadlines);
+      return ok("second link answered");
+    },
+  });
+
+  assert.deepEqual(deadlines, [true], "the hung link must have been given a deadline");
+  assert.equal(result.text, "second link answered");
+  assert.deepEqual(calls, ["big", "small"]);
+});
+
+test("the timeout is PER LINK — a slow first link does not eat the next one's budget", async () => {
+  const calls = [];
+  const deadlines = [];
+  const result = await complete({
+    chain: chain(),
+    env: ENV,
+    timeoutMs: 40,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: async (url, init) => {
+      const model = JSON.parse(init.body).model;
+      calls.push(model);
+      if (model === "big" || model === "small") return hangs(init, deadlines);
+      // The third link answers only if it got a FRESH budget rather than the
+      // remains of a shared one the first two already spent.
+      await new Promise((r) => setTimeout(r, 25));
+      return ok("third link, own budget");
+    },
+  });
+
+  assert.deepEqual(deadlines, [true, true], "each hung link must have had its own deadline");
+  assert.equal(result.text, "third link, own budget");
+  assert.deepEqual(calls, ["big", "small", "free"]);
+});
+
+test("a timeout says so, rather than reporting an anonymous abort", async () => {
+  const error = await complete({
+    chain: [chain()[0]],
+    env: ENV,
+    timeoutMs: 30,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: async (url, init) => hangs(init, []),
+  }).then(
+    () => null,
+    (e) => e,
+  );
+
+  assert.ok(error instanceof ChainExhaustedError);
+  // "This operation was aborted" in a log is indistinguishable from a caller
+  // cancelling, and the two want opposite reactions from whoever reads it.
+  assert.match(error.failures[0].message, /no response within 30ms/);
+});
+
+test("when the CALLER cancels, the walk stops instead of touring the vendors", async () => {
+  const calls = [];
+  const controller = new AbortController();
+
+  const error = await complete({
+    chain: chain(),
+    env: ENV,
+    signal: controller.signal,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: async (url, init) => {
+      calls.push(JSON.parse(init.body).model);
+      controller.abort();
+      throw new Error("aborted");
+    },
+  }).then(
+    () => null,
+    (e) => e,
+  );
+
+  assert.ok(error instanceof ChainExhaustedError);
+  // The caller is gone. Spending their daily budget on an answer nobody will
+  // read — then reporting "every vendor failed" about vendors never asked — is
+  // worse than useless.
+  assert.deepEqual(calls, ["big"]);
+});
+
+test("timeoutMs: 0 means wait forever — the escape hatch is real, not decorative", async () => {
+  const result = await complete({
+    chain: [chain()[0]],
+    env: ENV,
+    timeoutMs: 0,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: async (url, init) => {
+      // No deadline of ours means no composed signal imposed on the link.
+      assert.equal(init.signal, undefined);
+      return ok("waited");
+    },
+  });
+
+  assert.equal(result.text, "waited");
+});

@@ -100,6 +100,28 @@ a visible token: `groq/openai/gpt-oss-20b` answered *empty* at 16 and correctly
 at 256 for the same one-word question. A mean budget makes a healthy model look
 dead.
 
+**Every link gets its own deadline** (`timeoutMs`, default 30s). A vendor that
+accepts the connection and then never answers is the most common partial outage
+there is, and it is the one a fallback chain is least able to survive: without a
+deadline `await fetch` never returns, link two is never reached, and the chain
+that exists to survive an outage becomes the thing holding the request open.
+
+Note it is *per link*, and that it is not the same thing as `signal`:
+
+```ts
+// ✗ WRONG — link one spends the whole budget, links two and three inherit an
+//   already-aborted signal, and the "fallback" reports every vendor broken.
+complete({ chain, signal: AbortSignal.timeout(10_000), messages });
+
+// ✓ RIGHT — each link gets ten seconds; `signal` stays what it should be,
+//   the caller going away.
+complete({ chain, timeoutMs: 10_000, signal: request.signal, messages });
+```
+
+When the caller's `signal` aborts, the walk stops rather than touring the
+remaining vendors: the request nobody is waiting for should not spend the daily
+budget, nor report "every vendor failed" about vendors that were never asked.
+
 `tryChain` stays for a caller with a genuinely unusual request to make.
 
 ### Does it work RIGHT NOW? — a probe, not a guess
