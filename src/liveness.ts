@@ -40,6 +40,7 @@
  */
 
 import { complete, type CompleteOptions } from "./complete.js";
+import type { Link } from "./chain.js";
 import { ChainExhaustedError } from "./attempt.js";
 import type { HealthTracker } from "./health.js";
 
@@ -71,6 +72,22 @@ export interface LivenessOptions extends Omit<
    * Default 10 minutes. Set 0 to disable caching — only for a test.
    */
   minIntervalMs?: number;
+  /**
+   * Resolve the chain when a probe actually runs, rather than once at
+   * construction.
+   *
+   * For an app whose provider list lives in a DATABASE — an admin screen with
+   * enabled/default rows and per-provider keys — a chain fixed at construction
+   * is a chain frozen at process start. The probe would then keep reporting on
+   * a configuration the operator changed twenty minutes ago, which is the
+   * opposite of "the truth about right now".
+   *
+   * It is called only on a real probe, never on a cache hit, so a monitor
+   * polling this route does not also poll the database.
+   *
+   * Takes precedence over `chain` when both are given.
+   */
+  resolveChain?: () => Link[] | Promise<Link[]>;
   /** Injected for tests. Defaults to `Date.now`. */
   now?: () => number;
 }
@@ -140,9 +157,14 @@ export function createLivenessProbe(options: LivenessOptions = {}): LivenessProb
 
       const started = now();
       try {
+        // Resolved here, not at construction, and only on a real probe — so a
+        // monitor polling this route does not also poll whatever backs it.
+        const chain = options.resolveChain ? await options.resolveChain() : options.chain;
+
         const result = await complete({
           timeoutMs: PROBE_TIMEOUT_MS,
           ...options,
+          chain,
           messages: PROBE_MESSAGES,
           maxTokens: PROBE_MAX_TOKENS,
           temperature: 0,
