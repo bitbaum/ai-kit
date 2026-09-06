@@ -146,6 +146,19 @@ export interface CompleteOptions {
   tools?: unknown[];
   /** Extra body fields for a vendor-specific parameter. Merged last, so it can override. */
   extraBody?: Record<string, unknown>;
+  /**
+   * Extra request headers. Merged last, so a caller can override `content-type`
+   * — but NOT `authorization`, which stays the key this module resolved.
+   *
+   * Vendors ask for these and quietly change behaviour without them:
+   * OpenRouter reads `HTTP-Referer` and `X-Title` for app attribution in its
+   * public rankings, and an app that stops sending them simply disappears from
+   * that list with no error anywhere. Without this option, adopting `complete`
+   * would mean silently dropping them, which is exactly the kind of small,
+   * invisible regression that makes a shared engine feel worse than the
+   * hand-rolled client it replaced.
+   */
+  extraHeaders?: Record<string, string>;
   /** Called on each link's failure before moving on — e.g. to log which id rotted. */
   onLinkFailure?: (link: Link, error: Error) => void;
   /** Injected for tests. Defaults to global `fetch`. */
@@ -322,7 +335,15 @@ async function callLink(
   try {
     res = await doFetch(`${link.provider.baseUrl}/chat/completions`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      headers: {
+        "content-type": "application/json",
+        ...options.extraHeaders,
+        // Last on purpose. A caller may add or override any header it likes,
+        // but not this one: silently sending someone else's credential — or
+        // none — would turn a typo in a caller's header map into an auth
+        // failure blamed on the vendor.
+        authorization: `Bearer ${key}`,
+      },
       body: JSON.stringify(body),
       signal: deadline.signal,
     });

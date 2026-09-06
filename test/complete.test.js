@@ -276,6 +276,45 @@ test("`model` starts the chain at that link instead of the front", async () => {
   assert.deepEqual(calls, ["free"]);
 });
 
+test("extraHeaders reach the vendor — attribution a caller loses is invisible", async () => {
+  let sent;
+  await complete({
+    chain: [chain()[0]],
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    extraHeaders: { "HTTP-Referer": "https://botsmann.test", "X-Title": "Botsmann" },
+    fetchImpl: async (url, init) => {
+      sent = init.headers;
+      return ok("hi");
+    },
+  });
+
+  // OpenRouter reads these for app attribution in its public rankings. An app
+  // that stops sending them just disappears from that list, with no error
+  // anywhere — so a shared engine that cannot send them is a silent downgrade.
+  assert.equal(sent["HTTP-Referer"], "https://botsmann.test");
+  assert.equal(sent["X-Title"], "Botsmann");
+  assert.equal(sent["content-type"], "application/json");
+});
+
+test("extraHeaders can NOT overwrite authorization", async () => {
+  let sent;
+  await complete({
+    chain: [chain()[0]],
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    extraHeaders: { authorization: "Bearer somebody-elses-key" },
+    fetchImpl: async (url, init) => {
+      sent = init.headers;
+      return ok("hi");
+    },
+  });
+
+  // A typo in a caller's header map must not become an auth failure blamed on
+  // the vendor — or, worse, someone else's credential on the wire.
+  assert.equal(sent.authorization, "Bearer g");
+});
+
 // ─── Deadlines: the failure a fallback chain is least able to survive ────────
 //
 // A vendor that accepts the connection and then never answers is the most
