@@ -166,6 +166,53 @@ test("an explicit timeoutMs wins over the probe's default", async () => {
   assert.equal(seen, undefined, "timeoutMs: 0 must reach complete and disable the deadline");
 });
 
+test("resolveChain is read at PROBE time, so a DB-configured chain is never stale", async () => {
+  let configured = chain(["old"]);
+  let resolves = 0;
+  const [fetchImpl] = counting(() => ok("blue"));
+
+  const probe = createLivenessProbe({
+    env: ENV,
+    fetchImpl,
+    minIntervalMs: 0,
+    resolveChain: () => {
+      resolves += 1;
+      return configured;
+    },
+  });
+
+  assert.equal((await probe.run()).servedBy, "groq/old");
+
+  // An operator changes the provider in an admin screen. A chain fixed at
+  // construction would keep reporting on the configuration they replaced.
+  configured = chain(["new"]);
+  assert.equal((await probe.run()).servedBy, "groq/new");
+  assert.equal(resolves, 2);
+});
+
+test("a cache hit does NOT resolve the chain — polling must not also poll the DB", async () => {
+  let resolves = 0;
+  const [fetchImpl] = counting(() => ok("blue"));
+  let clock = 1000;
+
+  const probe = createLivenessProbe({
+    env: ENV,
+    fetchImpl,
+    minIntervalMs: 60_000,
+    now: () => clock,
+    resolveChain: () => {
+      resolves += 1;
+      return chain();
+    },
+  });
+
+  await probe.run();
+  clock += 30_000;
+  await probe.run();
+
+  assert.equal(resolves, 1);
+});
+
 test("no keys is reported as SKIPPED, not as a working chain", async () => {
   const probe = createLivenessProbe({ chain: [], env: {}, fetchImpl: async () => ok("x") });
   const r = await probe.run();
