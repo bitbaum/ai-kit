@@ -101,6 +101,15 @@ export {
 } from "./health.js";
 
 export {
+  type LivenessResult,
+  type LivenessOptions,
+  type LivenessProbe,
+  type AiHealthHandlerOptions,
+  createLivenessProbe,
+  createAiHealthHandler,
+} from "./liveness.js";
+
+export {
   type RateLimitKind,
   classifyRateLimit,
   retryAfterSeconds,
