@@ -96,6 +96,33 @@ export interface LivenessOptions extends Omit<
    */
   resolveChain?: () =>
     Link[] | { chain: Link[]; env?: Env } | Promise<Link[] | { chain: Link[]; env?: Env }>;
+  /**
+   * Make the call YOURSELF, using the app's own path. Takes precedence over
+   * `chain` and `resolveChain`.
+   *
+   * Not every app can hand over a `Link[]`. Four in this fleet cannot: one
+   * builds its chain from its own provider CLASSES, one from a registry it
+   * deliberately owns (its BYOK list includes paid ids), one talks to a single
+   * operator-configured endpoint chosen for data residency, and one keeps a
+   * provider layer that predates this package. Requiring a chain would have
+   * meant either rewriting those or leaving them with no probe at all — and
+   * "no probe" is what left seven apps unable to answer "does the AI work?"
+   * after a fleet-wide refactor.
+   *
+   * There is a second, better reason. A probe built from a chain this module
+   * assembles tests A path; `ask` tests THE path — the same function the app's
+   * real features call. That is strictly stronger evidence, and it means the
+   * probe cannot quietly drift away from the code it is meant to vouch for.
+   *
+   * Everything else still applies: it runs only on an explicit, authorised
+   * probe, a success is cached, and a failure never is. Return the text the
+   * model produced and, if you have it, the `provider/model` that served it.
+   *
+   * An empty or whitespace-only `text` is treated as a FAILURE, for the same
+   * reason `complete()` treats it as one: a 200 carrying nothing is the
+   * failure most likely to be reported as success.
+   */
+  ask?: () => Promise<{ text: string; id?: string }>;
   /** Injected for tests. Defaults to `Date.now`. */
   now?: () => number;
 }
@@ -165,6 +192,27 @@ export function createLivenessProbe(options: LivenessOptions = {}): LivenessProb
 
       const started = now();
       try {
+        if (options.ask) {
+          const asked = await options.ask();
+          const text = asked.text.trim();
+          // Same rule as `complete()`: a 200 carrying nothing is not an answer.
+          // Without this, an app whose own path returns "" on failure — several
+          // do, by design, so callers can degrade — would report itself healthy
+          // on exactly the outage this route exists to catch.
+          if (text === "") {
+            throw new Error("the app's own path returned empty content — no output was produced");
+          }
+          const fresh: LivenessResult = {
+            ok: true,
+            ...(asked.id ? { servedBy: asked.id } : {}),
+            answer: text,
+            ms: now() - started,
+            cached: false,
+          };
+          lastOk = { at: now(), result: fresh };
+          return fresh;
+        }
+
         // Resolved here, not at construction, and only on a real probe — so a
         // monitor polling this route does not also poll whatever backs it.
         const resolved = options.resolveChain ? await options.resolveChain() : options.chain;
