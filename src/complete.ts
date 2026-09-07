@@ -449,6 +449,26 @@ export async function complete(options: CompleteOptions): Promise<CompleteResult
 
       if (failure.kind === "daily") deadProviders.add(link.provider.id);
 
+      // A REJECTED KEY is a verdict about the VENDOR, not the model.
+      //
+      // 401/403 says "not you". Every remaining link at this provider presents
+      // the identical credential, so walking them spends a request each to be
+      // told the same thing — and then reports "all 5 links failed", which
+      // reads as an outage at someone else's shop and sends the reader looking
+      // for one. The fact worth surfacing is that a key this app holds was
+      // refused.
+      //
+      // Crossing to the NEXT vendor still happens: that is a different key, and
+      // the whole reason the chain spans vendors.
+      //
+      // Deliberately narrow. A 404 is a retired id, a 5xx is a vendor being
+      // unwell, a capacity 429 is a busy minute — all three are answered by
+      // asking a different model, and widening this skip to cover them would
+      // quietly turn the chain back into the pin it replaced.
+      if (failure.status === 401 || failure.status === 403) {
+        deadProviders.add(link.provider.id);
+      }
+
       // The caller cancelled — the request they were waiting on is gone. Walking
       // the rest of the chain now would spend their daily budget on an answer
       // nobody will read, and would report "every vendor failed" about vendors
