@@ -276,6 +276,67 @@ test("`model` starts the chain at that link instead of the front", async () => {
   assert.deepEqual(calls, ["free"]);
 });
 
+test("a REJECTED KEY condemns that vendor — its other models present the same one", async () => {
+  const calls = [];
+  const result = await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: fakeFetch(
+      {
+        big: new Response('{"error":{"code":"invalid_api_key"}}', { status: 401 }),
+        small: ok("groq's second model — must NOT be reached"),
+        free: ok("openrouter answered"),
+      },
+      calls,
+    ),
+  });
+
+  // groq/small is skipped: it would send the identical credential and be told
+  // the same thing, costing a request to learn nothing. Crossing to OpenRouter
+  // still happens — a different key is the whole reason the chain spans
+  // vendors.
+  assert.equal(result.text, "openrouter answered");
+  assert.deepEqual(calls, ["big", "free"]);
+});
+
+test("403 counts as rejected too, and 404 does NOT", async () => {
+  const forbidden = [];
+  await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: fakeFetch(
+      {
+        big: new Response("forbidden", { status: 403 }),
+        small: ok("unreachable"),
+        free: ok("openrouter"),
+      },
+      forbidden,
+    ),
+  });
+  assert.deepEqual(forbidden, ["big", "free"]);
+
+  // A 404 is a RETIRED ID — a fact about one model, answered by asking a
+  // different one. Widening the vendor skip to cover it would turn the chain
+  // back into the pin it replaced.
+  const retired = [];
+  const result = await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    fetchImpl: fakeFetch(
+      {
+        big: new Response('{"error":{"code":"model_not_found"}}', { status: 404 }),
+        small: ok("same vendor, next model"),
+      },
+      retired,
+    ),
+  });
+  assert.equal(result.text, "same vendor, next model");
+  assert.deepEqual(retired, ["big", "small"]);
+});
+
 test("extraHeaders reach the vendor — attribution a caller loses is invisible", async () => {
   let sent;
   await complete({
