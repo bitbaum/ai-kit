@@ -277,8 +277,15 @@ export interface AiHealthHandlerOptions extends LivenessOptions {
    * When absent, the handler NEVER probes — it only reports passive health.
    * That default is deliberate: an app that forgets to configure a secret gets
    * a route that cannot spend money, rather than an open endpoint that can.
+   *
+   * Pass a FUNCTION to read it per request. A handler is normally built once
+   * and reused (its cache has to live somewhere), so a plain string is captured
+   * at that moment — which means the secret is whatever the environment held on
+   * the first request, and rotating it needs a process restart. A getter also
+   * makes the route testable: with a captured string, the first test that runs
+   * without a secret configured pins every later one to 501.
    */
-  secret?: string;
+  secret?: string | (() => string | undefined);
   /** Passive health to report alongside. Optional. */
   health?: HealthTracker;
 }
@@ -316,17 +323,21 @@ export function createAiHealthHandler(
       return json(200, { probed: false, ...passive });
     }
 
+    // Read per request when a getter was given, so rotating the secret does not
+    // need a restart and a route built before the env was set is not stuck.
+    const expected = typeof secret === "function" ? secret() : secret;
+
     // No secret configured means probing is switched off, which is a different
     // answer from "your secret is wrong" — say so, rather than implying the
     // caller could retry with a better credential.
-    if (!secret) {
+    if (!expected) {
       return json(501, {
         probed: false,
         error: "Probing is not configured on this deployment (no secret set).",
         ...passive,
       });
     }
-    if (!offered || !timingSafeEqual(offered, secret)) {
+    if (!offered || !timingSafeEqual(offered, expected)) {
       return json(401, { probed: false, error: "Bad or missing probe secret.", ...passive });
     }
 
