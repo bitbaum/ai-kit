@@ -249,6 +249,88 @@ test("a cache hit does NOT resolve the chain — polling must not also poll the 
   assert.equal(resolves, 1);
 });
 
+// ── `ask`: probe the app's OWN path ─────────────────────────────────────────
+//
+// Not every app can hand over a Link[] — and even where it can, a chain this
+// module assembles tests A path while the app's own function tests THE path.
+
+test("ask lets an app probe its own call, and reports what it answered", async () => {
+  const probe = createLivenessProbe({
+    // No chain and no keys: `ask` owns the call entirely.
+    ask: async () => ({ text: "  blue  ", id: "kivvi/groq-llama" }),
+  });
+
+  const r = await probe.run();
+
+  assert.equal(r.ok, true);
+  assert.equal(r.answer, "blue");
+  assert.equal(r.servedBy, "kivvi/groq-llama");
+});
+
+test("ask returning EMPTY is a failure — several apps return '' to degrade", async () => {
+  const probe = createLivenessProbe({ minIntervalMs: 0, ask: async () => ({ text: "   " }) });
+
+  const r = await probe.run();
+
+  // Those apps return "" or null on failure BY DESIGN so callers can fall back.
+  // Accepting it here would make the probe report health on exactly the outage
+  // it exists to catch.
+  assert.equal(r.ok, false);
+  assert.match(r.failures[0], /empty content/);
+});
+
+test("ask takes precedence over a chain, and the chain is never called", async () => {
+  const [fetchImpl, calls] = counting(() => ok("from the chain"));
+  const probe = createLivenessProbe({
+    chain: chain(),
+    env: ENV,
+    fetchImpl,
+    ask: async () => ({ text: "from the app" }),
+  });
+
+  assert.equal((await probe.run()).answer, "from the app");
+  assert.equal(calls.n, 0);
+});
+
+test("an ask that throws is a failure, and is NOT cached", async () => {
+  let up = false;
+  const probe = createLivenessProbe({
+    minIntervalMs: 60_000,
+    now: () => 1000,
+    ask: async () => {
+      if (!up) throw new Error("vendor down");
+      return { text: "blue" };
+    },
+  });
+
+  assert.equal((await probe.run()).ok, false);
+
+  // The clock has NOT advanced, so only the no-cache-on-failure rule can let
+  // this through.
+  up = true;
+  assert.equal((await probe.run()).ok, true);
+});
+
+test("a successful ask IS cached — an app's own path costs tokens too", async () => {
+  let asks = 0;
+  let clock = 1000;
+  const probe = createLivenessProbe({
+    minIntervalMs: 60_000,
+    now: () => clock,
+    ask: async () => {
+      asks += 1;
+      return { text: "blue" };
+    },
+  });
+
+  await probe.run();
+  clock += 30_000;
+  const second = await probe.run();
+
+  assert.equal(asks, 1);
+  assert.equal(second.cached, true);
+});
+
 test("no keys is reported as SKIPPED, not as a working chain", async () => {
   const probe = createLivenessProbe({ chain: [], env: {}, fetchImpl: async () => ok("x") });
   const r = await probe.run();
