@@ -379,6 +379,32 @@ test("handler: with no secret CONFIGURED, probing is off rather than open", asyn
   assert.match(body.error, /not configured/);
 });
 
+test("handler: a FUNCTION secret is read per request, not captured once", async () => {
+  let configured;
+  const handler = createAiHealthHandler({
+    chain: chain(),
+    env: ENV,
+    fetchImpl: async () => ok("blue"),
+    secret: () => configured,
+  });
+
+  // A handler is built once and reused — its cache has to live somewhere — so a
+  // captured string is whatever the environment held on the FIRST request.
+  // Probing before the secret exists must not pin the route to 501 forever.
+  assert.equal((await handler(new Request("https://x.test/api/health/ai?probe=1"))).status, 501);
+
+  configured = "now-set";
+  const res = await handler(new Request("https://x.test/api/health/ai?probe=1&secret=now-set"));
+  assert.equal(res.status, 200);
+
+  // And rotating it takes effect without a restart.
+  configured = "rotated";
+  assert.equal(
+    (await handler(new Request("https://x.test/api/health/ai?probe=1&secret=now-set"))).status,
+    401,
+  );
+});
+
 test("handler: a good secret probes and returns 200 with the answer", async () => {
   const [fetchImpl] = counting(() => ok("blue"));
   const handler = createAiHealthHandler({ chain: chain(), env: ENV, fetchImpl, secret: "s" });
