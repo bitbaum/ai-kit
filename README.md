@@ -333,6 +333,67 @@ It does not summarise, re-rank with an LLM, crawl, render JavaScript, or cache.
 The first two are the model's job and belong upstream where the app's prompt
 lives; the last three are a different product with a different cost profile.
 
+### What can this model do? — observe, never assert
+
+```ts
+import {
+  planToolAttempt,
+  classifyToolAttempt,
+  claimableVerdict,
+  currentVerdict,
+  makeRecord,
+  scopeKey,
+} from "@bitbaum/ai-kit/capability";
+
+const observed = currentVerdict(await store.get(key)); // "native" | "text" | "none" | "unobserved"
+const plan = planToolAttempt({ observed }); // what to put on the wire
+
+const res = await fetch(endpoint, {
+  /* … tools attached when plan.sendTools … */
+});
+const seen = classifyToolAttempt({ status: res.status, parsed, bodyText, textProtocolFound });
+if (seen.record) await store.put(makeRecord({ ...key, verdict: seen.verdict, via: "live" }));
+```
+
+This replaces the line every app writes and every app gets wrong:
+
+```ts
+const TOOL_CAPABLE_PROVIDERS = ["groq", "openrouter"]; // wrong tomorrow
+```
+
+That list is wrong the moment a user brings a model nobody has heard of, which
+is every day. It is also wrong in the other direction: it cannot express that
+**five of nine** free models probed here answer tools only in prose, so a
+native-only client loses most of its chain while believing it is fine.
+
+**The first real call is the probe.** Send the tools, read what comes back,
+write down what it proved. Every model a user brings classifies itself on its
+first message, at no extra cost and with no release from us. Nothing here
+spends a separate request, which matters most when the key is the user's.
+
+**A positive is cheap; a negative is expensive and sticky.** One `tool_calls`
+response proves capability outright. A 400 proves nothing *unless the vendor
+says it is about tools* — a context-length overflow, a content filter or a bad
+parameter must be recorded as nothing at all, because writing one down as "no
+tools" cripples a capable model until the record expires and nothing in the
+product explains why. Hence `record: false`: the right response to an
+uninformative failure is to learn nothing, not to guess.
+
+**"Never asked" is its own answer, read two ways.** `planToolAttempt` is
+optimistic about it, because asking is the only way to learn. `claimableVerdict`
+is pessimistic about it, because announcing a capability a model has never
+demonstrated is a promise it may not keep, and the user meets that as a broken
+feature rather than a missing one. A single boolean cannot hold both, which is
+the whole reason this module exists.
+
+Records expire, and negatives expire sooner than positives: a model that gained
+tool support and is still marked incapable is invisibly crippled, while one that
+lost it says so loudly on the next call. Observations are keyed by a **hash** of
+the credential, never the credential, because capability genuinely differs per
+key and observations must not leak across them.
+
+Storage stays yours — a table, a KV, a file. This owns the shape and the rules.
+
 ---
 
 ## What it deliberately does not ship
