@@ -80,6 +80,13 @@ export const FACT_KINDS: Record<string, readonly string[]> = {
   assignment: ["title", "assignee", "status", "due", "fee", "why"],
   document: ["title", "source", "excerpt"],
   pending_action: ["title", "type", "reasoning", "proposed_on", "id"],
+  // Retrieved from the open web rather than stored. `url` is the field that
+  // makes these checkable by a human reader, which is what separates a cited
+  // claim from a confident one. The rest are declared precisely BECAUSE search
+  // engines so often omit them: a rendered `published: <not recorded>` is what
+  // stops a model putting a year on an undated page.
+  web_result: ["title", "url", "published", "snippet", "engine"],
+  web_page: ["title", "url", "retrieved", "truncated"],
 };
 
 /** Field list for a kind; unknown kinds fall back to whatever the fact carries. */
