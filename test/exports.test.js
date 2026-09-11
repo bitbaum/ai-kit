@@ -43,6 +43,11 @@ test("the package exports its public surface through the exports map", () => {
     "readingFromRefusal",
     "parseResetAt",
     "answersRemaining",
+    // policy
+    "decide",
+    "shouldSurface",
+    "nextUtcReset",
+    "DEFAULT_LADDER",
   ];
   for (const name of expected) {
     assert.ok(name in pkg, `missing export: ${name}`);
