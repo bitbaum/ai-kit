@@ -361,6 +361,50 @@ locally.
 anything to do with AI. An app that throttles its login form should not install a
 model catalogue to do it.
 
+## Versioning
+
+**This package is 1.x, and that is a functional decision rather than a
+milestone.**
+
+While it was `0.x`, every consumer was frozen at whatever minor it first
+installed, and nobody chose that. A caret range on a pre-1.0 version does not
+cross a minor — `^0.13.0` resolves to *at least 0.13.0 and below 0.14.0* —
+because semver treats a `0.x` minor as a breaking change. So eleven repos sat on
+five different versions of this package, spanning `0.6.2` to `0.15.0`, while the
+registry served `0.16.0` to none of them.
+
+The automation was not broken and nobody was neglecting it. Dependabot ran weekly
+in every one of those repos, correctly classified each `0.x` minor as a breaking
+change, and correctly routed it to its own pull request for a human to review —
+which is the right policy for a breaking change and the wrong outcome for a
+package whose minors were additive in practice. The version numbering defeated
+the process.
+
+From here:
+
+- **Minor releases are additive.** New exports, new providers, new options with
+  defaults. Safe to take automatically, and your caret range will.
+- **Major releases remove or change something.** They get a migration note and
+  they are meant to be read before merging.
+- **Patch releases fix behaviour** without changing the surface.
+
+The upgrade *to* 1.0.0 is the one exception, and it is a real one: a repo coming
+from `0.6.x` crosses ten minors of a package that was permitted to break at each
+of them. Run your own suite. Afterwards, the point is that you will not have to
+again.
+
+### Keep the volatile things out of the version
+
+Model ids rot on a timescale of weeks — vendors retire them with little notice,
+and a free catalogue rotates faster than that. Anything on that clock does not
+belong in a release, because shipping it means a version bump per rot and one
+upgrade per consumer to deliver a fact that was true yesterday.
+
+So this package ships the *logic* — how to discover a catalogue, how to walk a
+chain, how to read a refusal — and keeps the perishable data in the environment
+and in live catalogue fetches. That is what makes being a version behind
+uninteresting, which is a better property than being always current.
+
 ## Development
 
 ```bash
