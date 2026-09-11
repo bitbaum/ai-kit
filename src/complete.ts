@@ -60,6 +60,7 @@ import { type Env, type Link, type Provider, chainFrom, freeChain, usableChain }
 import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
 import type { HealthTracker } from "./health.js";
 import { classifyRateLimit, retryAfterSeconds, type RateLimitKind } from "./limits.js";
+import { readQuota, readingFromRefusal, type QuotaReading } from "./meter.js";
 
 /** One message in the OpenAI chat-completions shape every provider here speaks. */
 export interface ChatMessage {
@@ -161,6 +162,23 @@ export interface CompleteOptions {
   extraHeaders?: Record<string, string>;
   /** Called on each link's failure before moving on — e.g. to log which id rotted. */
   onLinkFailure?: (link: Link, error: Error) => void;
+  /**
+   * Called with every remaining-quota figure the vendor disclosed, on success
+   * AND on refusal. This is how an app learns what is left without spending a
+   * request to ask.
+   *
+   * It fires on 429s too, and those are the most valuable readings of all: a
+   * refusal is the vendor correcting a local counter that had drifted
+   * optimistic. See `meter.ts` for why polling a vendor's usage endpoint
+   * instead is the wrong design — one of them reports an untouched allowance
+   * while the key is locked out.
+   *
+   * Keep it cheap and never let it throw: it runs inside the response path, and
+   * an exception here would turn a good answer into a link failure. Persisting
+   * is the app's job, which is why this is a callback and not a store — the
+   * package stays free of a database.
+   */
+  onQuota?: (readings: QuotaReading[]) => void;
   /** Injected for tests. Defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
 }
@@ -367,10 +385,31 @@ async function callLink(
 
   const text = await res.text();
 
+  // Read the tank before interpreting the answer, so a refusal still reports
+  // what it disclosed. A caller's hook must never turn a good response into a
+  // failure, so it is isolated — an app's logging bug is not a vendor outage.
+  const report = (readings: QuotaReading[]) => {
+    if (readings.length === 0 || !options.onQuota) return;
+    try {
+      options.onQuota(readings);
+    } catch {
+      /* the caller's sink is the caller's problem */
+    }
+  };
+  report(readQuota(res.headers, link));
+
   if (!res.ok) {
     if (res.status === 429) {
       const kind = classifyRateLimit(text);
       const retryAfter = retryAfterSeconds(text);
+      // The most reliable reading there is: the vendor itself saying "spent".
+      // Recorded even when no header carried a number, because it corrects a
+      // local counter that had drifted optimistic. `size` is excluded — that
+      // 429 means this one prompt was too big, not that the allowance is gone,
+      // and recording it as empty would take a working vendor out of service.
+      if (kind !== "size") {
+        report([readingFromRefusal(link, retryAfter)]);
+      }
       throw new LinkFailure(link, `${linkId(link)}: 429 ${kind} — ${excerpt(text)}`, {
         status: 429,
         kind,

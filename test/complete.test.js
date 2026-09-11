@@ -509,3 +509,87 @@ test("timeoutMs: 0 means wait forever — the escape hatch is real, not decorati
 
   assert.equal(result.text, "waited");
 });
+
+// ── The quota hook ──────────────────────────────────────────────────────────
+// A hook nobody calls is a dead feature that looks alive, so these assert the
+// WIRING. The parsing itself is meter.test.js's job.
+
+test("quota headers on a SUCCESS reach the caller's sink", async () => {
+  const seen = [];
+  await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    onQuota: (readings) => seen.push(...readings),
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "hello" } }] }), {
+        status: 200,
+        headers: {
+          "x-ratelimit-limit-requests": "1000",
+          "x-ratelimit-remaining-requests": "998",
+        },
+      }),
+  });
+
+  assert.equal(seen.length, 1, "the successful call disclosed one counter");
+  assert.equal(seen[0].remaining, 998);
+  assert.equal(seen[0].provider, "groq");
+});
+
+test("a REFUSAL reports an empty tank — the most reliable reading there is", async () => {
+  const daily = "Rate limit reached on tokens per day (TPD): Limit 100000. Try again in 56m26.88s.";
+  const seen = [];
+  await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    onQuota: (readings) => seen.push(...readings),
+    fetchImpl: fakeFetch({ big: err(429, daily), small: ok("x"), free: ok("x") }),
+  });
+
+  const empty = seen.filter((r) => r.remaining === 0 && r.source === "429");
+  assert.ok(empty.length >= 1, "the 429 was recorded as a zero, correcting any local counter");
+  assert.equal(empty[0].provider, "groq");
+});
+
+test("a SIZE refusal does NOT report an empty tank", async () => {
+  // "Request too large" means this one prompt did not fit, not that the
+  // allowance is gone. Recording it as empty would take a working vendor out of
+  // service for the rest of the day over one oversized prompt.
+  const size =
+    "Request too large for model on tokens per minute (TPM): Limit 6000, Requested 15041";
+  const seen = [];
+  await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    onQuota: (readings) => seen.push(...readings),
+    fetchImpl: fakeFetch({ big: err(429, size), small: ok("x"), free: ok("x") }),
+  }).catch(() => {});
+
+  assert.equal(
+    seen.filter((r) => r.source === "429").length,
+    0,
+    "a size refusal says nothing about the allowance",
+  );
+});
+
+test("a throwing sink cannot turn a good answer into a failure", async () => {
+  // The hook runs inside the response path. An app's logging bug must not
+  // become a vendor outage.
+  const result = await complete({
+    chain: chain(),
+    env: ENV,
+    messages: [{ role: "user", content: "hi" }],
+    onQuota: () => {
+      throw new Error("the app's sink is broken");
+    },
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "survived" } }] }), {
+        status: 200,
+        headers: { "x-ratelimit-remaining-requests": "5" },
+      }),
+  });
+
+  assert.equal(result.text, "survived");
+});
