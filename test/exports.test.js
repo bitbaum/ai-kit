@@ -38,6 +38,11 @@ test("the package exports its public surface through the exports map", () => {
     "utcDayKey",
     "DAY_SECONDS",
     "DEFAULT_BURST",
+    // meter
+    "readQuota",
+    "readingFromRefusal",
+    "parseResetAt",
+    "answersRemaining",
   ];
   for (const name of expected) {
     assert.ok(name in pkg, `missing export: ${name}`);

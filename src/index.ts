@@ -118,6 +118,17 @@ export {
 } from "./limits.js";
 
 export {
+  type QuotaScope,
+  type QuotaWindow,
+  type QuotaReading,
+  type HeaderBag,
+  readQuota,
+  readingFromRefusal,
+  parseResetAt,
+  answersRemaining,
+} from "./meter.js";
+
+export {
   DAY_SECONDS,
   DEFAULT_BURST,
   type ShareInput,

@@ -361,6 +361,50 @@ locally.
 anything to do with AI. An app that throttles its login form should not install a
 model catalogue to do it.
 
+## Knowing what is left
+
+```ts
+const result = await complete({
+  messages,
+  onQuota: (readings) => void recordQuota(readings), // your table, your call
+});
+```
+
+Every vendor answer carries what it was willing to disclose about your remaining
+allowance, and this hands it to you on success **and on refusal**. No extra
+request: the number arrives on the exchange you were making anyway.
+
+**Do not poll a vendor's usage endpoint instead.** Measured on one live key,
+within the same second:
+
+```
+GET  /api/v1/key         →  limit_remaining: null,  usage_daily: 0
+POST /chat/completions   →  429, x-ratelimit-remaining: 0 of 50,
+                            "Rate limit exceeded: free-models-per-day"
+```
+
+Both are OpenRouter, about the same account, and the account was locked out. The
+usage endpoint tracks money; free models cost nothing; the limit that actually
+binds is a request count it never reports. A dashboard built on the first line
+shows a full tank during a total outage.
+
+Three things this will not do, each deliberate:
+
+- **It never invents a reading.** A vendor that sends no headers produces none.
+  Absent is a third state next to known and empty — render it as *unknown*,
+  because drawing it full repeats the bug above and drawing it empty invents an
+  outage.
+- **It never guesses a window.** `x-ratelimit-remaining-requests` counts a day at
+  Groq and a minute elsewhere, so the window comes from a verified per-provider
+  profile or from the header's own name, and is otherwise reported as unknown.
+- **It never stores anything.** Persisting is the app's job, which is why this is
+  a callback. The package has no database and should not grow one.
+
+`answersRemaining(reading, tokensPerTurn)` converts a token count into the unit a
+person actually thinks in. Nobody has an intuition for a token; "about 40 more
+answers" is actionable, and "7,927 tokens" is a sum the reader has to do and will
+get wrong.
+
 ## Versioning
 
 **This package is 1.x, and that is a functional decision rather than a
