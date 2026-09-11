@@ -129,6 +129,21 @@ export {
 } from "./meter.js";
 
 export {
+  type PoolId,
+  type RungId,
+  type TierPolicy,
+  type AiPolicy,
+  type UserState,
+  type WallOption,
+  type Wall,
+  type Decision,
+  DEFAULT_LADDER,
+  decide,
+  shouldSurface,
+  nextUtcReset,
+} from "./policy.js";
+
+export {
   DAY_SECONDS,
   DEFAULT_BURST,
   type ShareInput,
