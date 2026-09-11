@@ -287,6 +287,52 @@ stop paying for a form library.
 React lives on its own subpath and is an **optional** peer, so importing
 `@bitbaum/ai-kit` on a server never pulls in a UI library.
 
+### Seeing the web — search and read, as citable facts
+
+```ts
+import { webSearch, readPage, resultsToFacts, describeEmptySearch } from "@bitbaum/ai-kit/web";
+import { assignFactIds, renderFacts } from "@bitbaum/ai-kit/grounding";
+
+const found = await webSearch("lightning address spec", { limit: 5 });
+if (found.status !== "found") {
+  return describeEmptySearch(found); // the model is told WHICH of the two this is
+}
+const facts = assignFactIds(resultsToFacts(found.results, found.provider));
+```
+
+Backends are a chain, in the same shape and for the same reason as the model
+chain: `searxng` (self-hosted, no key, no third party told what your users are
+looking for) → `brave` (an independent index, so the fallback is not the same
+index asked twice) → `tavily`. Each is included only if its env is set, so the
+common case is one call rather than a policy re-decided in every app.
+
+**The answer is three-valued, and that is the whole point.** `found`; `nothing`
+(a backend answered and had nothing — a real negative the model may state); and
+`could_not_look` (nobody answered — an outage, which the model must **not**
+report as a fact about the world). Collapsing the last two into `[]` is how an
+expired API key becomes a confident sentence about what does not exist on the
+internet. A backend that answers `200` with zero results is walked past rather
+than believed, because that is exactly what a self-hosted metasearch instance
+does when its upstream engines refuse it.
+
+`readPage()` is the other half — search returns titles and one sentence, and
+almost every real question needs the page. It fetches with `redirect: "manual"`
+and re-runs the **full SSRF check on every hop**, because an agent picks its own
+URLs: any page it reads can hand it a link to the cloud metadata service, and
+validating the first URL and then letting `fetch` follow the 302 is not a check
+at all. Truncation is stated in the result rather than implied, so a summary can
+say "the first part of the page" instead of implying it read all of it.
+
+Both produce `Fact`s from `/grounding` rather than a bespoke shape, so retrieved
+web content and retrieved database rows flow through **one** verifier and "cite
+your sources" becomes a string check instead of a line in a prompt. Search
+without citation binding makes hallucination worse, not better: the invented
+sentence is now surrounded by real ones.
+
+It does not summarise, re-rank with an LLM, crawl, render JavaScript, or cache.
+The first two are the model's job and belong upstream where the app's prompt
+lives; the last three are a different product with a different cost profile.
+
 ---
 
 ## What it deliberately does not ship
