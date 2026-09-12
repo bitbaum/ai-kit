@@ -129,6 +129,15 @@ export {
 } from "./meter.js";
 
 export {
+  type ParsedToolCall,
+  TEXT_TOOL_PROTOCOL_HINT,
+  parseTextToolCalls,
+  stripToolCallLines,
+  safeJsonObject,
+  toolNamesFrom,
+} from "./tool-protocol.js";
+
+export {
   type PoolId,
   type RungId,
   type TierPolicy,
