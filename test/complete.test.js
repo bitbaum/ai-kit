@@ -593,3 +593,43 @@ test("a throwing sink cannot turn a good answer into a failure", async () => {
 
   assert.equal(result.text, "survived");
 });
+
+test("a multimodal message reaches the wire unchanged", async () => {
+  // `content` was typed `string` while callLink forwarded whatever it was
+  // given, so sending a screenshot meant casting around this package's own
+  // type — and a cast written to work around a library gets copied by the
+  // next consumer. This asserts the parts arrive intact.
+  let sent;
+  const parts = [
+    { type: "text", text: "what does this say?" },
+    { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+  ];
+
+  await complete({
+    chain: [{ provider: provider("groq", "GROQ_API_KEY", ["big"]), model: "big" }],
+    env: ENV,
+    messages: [{ role: "user", content: parts }],
+    fetchImpl: async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return ok("fine");
+    },
+  });
+
+  assert.deepEqual(sent.messages[0].content, parts);
+});
+
+test("a plain string message is untouched by the widening", async () => {
+  // Backward compatibility is the whole claim: every existing caller passes a
+  // string, and must keep sending exactly a string.
+  let sent;
+  await complete({
+    chain: [{ provider: provider("groq", "GROQ_API_KEY", ["big"]), model: "big" }],
+    env: ENV,
+    messages: [{ role: "user", content: "hello" }],
+    fetchImpl: async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return ok("fine");
+    },
+  });
+  assert.equal(sent.messages[0].content, "hello");
+});
