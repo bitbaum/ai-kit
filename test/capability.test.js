@@ -122,6 +122,68 @@ test("the unsupported-tools matcher does not fire on ordinary refusals", () => {
   assert.equal(saysToolsUnsupported("tool calling is not supported"), true);
 });
 
+/**
+ * A missed phrasing is not a cheap failure.
+ *
+ * The header used to say a false negative "costs one request". It does not.
+ * The caller that sends tool definitions also DROPS its prose fallback, so a
+ * refusal nobody recognises leaves the model unable to call a tool and no
+ * longer told how to act without one — and since nothing is recorded, that
+ * repeats on every single turn. The list has to cover how vendors actually
+ * write the sentence, not just one grammatical form of it.
+ */
+test("recognises the sentence in the forms vendors actually write it", () => {
+  const refusals = [
+    // The gap that started this: plural subject, plural verb. Matched nothing.
+    "tools are not supported by this model",
+    "Tools are not supported for this model.",
+    "functions are not supported",
+    "tools are unsupported",
+    "tool is not supported",
+    // Already covered, and must stay covered.
+    "tool calling is not supported",
+    "This model does not support tool use",
+    "doesn't support tools",
+    "no support for tools",
+    "function calling is not supported",
+    "unsupported parameter: 'tools'",
+    "unknown field: tools",
+    "tools is not a valid parameter",
+    // Plainly-worded incapacity.
+    "this model cannot use tools",
+    "the model can't call functions",
+    "this model is unable to use tools",
+    "no tool support on this endpoint",
+  ];
+  for (const body of refusals) {
+    assert.equal(saysToolsUnsupported(body), true, `should match: ${body}`);
+  }
+});
+
+test("widening the matcher did not make it fire on unrelated refusals", () => {
+  // Each of these is a real 400/401/429 that says NOTHING about tools. A match
+  // here would silently downgrade a working model, which is the worse failure
+  // of the two because nobody can see it happen.
+  const innocent = [
+    "maximum context length exceeded",
+    "unsupported parameter: response_format",
+    "this model is not supported on your plan",
+    "Rate limit reached for requests",
+    "Invalid API key provided",
+    "You exceeded your current quota",
+    "The model `gpt-9` does not exist",
+    "streaming is not supported for this model",
+    "vision is not supported by this model",
+    "json_schema is not a valid response_format",
+    "your account is not allowed to use this model",
+    "temperature is not supported with this model",
+    "",
+  ];
+  for (const body of innocent) {
+    assert.equal(saysToolsUnsupported(body), false, `should NOT match: ${body}`);
+  }
+});
+
 // ── optimistic on the wire, pessimistic in the claim ────────────────────────
 
 test("an unobserved model is ASKED, and the request doubles as the probe", () => {
