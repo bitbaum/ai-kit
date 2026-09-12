@@ -84,6 +84,7 @@ export {
 
 export {
   type ChatMessage,
+  type ContentPart,
   type ToolCall,
   type CompleteOptions,
   type CompleteResult,

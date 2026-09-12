@@ -63,10 +63,32 @@ import { classifyRateLimit, retryAfterSeconds, type RateLimitKind } from "./limi
 import { readQuota, readingFromRefusal, type QuotaReading } from "./meter.js";
 import { parseTextToolCalls, stripToolCallLines, toolNamesFrom } from "./tool-protocol.js";
 
-/** One message in the OpenAI chat-completions shape every provider here speaks. */
+/**
+ * A piece of a message, for the models that accept more than text.
+ *
+ * The same shape every provider here already speaks, because it is OpenAI's —
+ * `image_url.url` takes a `data:` URL or an `https:` one.
+ */
+export type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } };
+
+/**
+ * One message in the OpenAI chat-completions shape every provider here speaks.
+ *
+ * `content` accepts parts as well as a string because the implementation
+ * always carried them: `callLink` forwards `messages` into the request body
+ * untouched, so a multimodal message has worked at runtime since the first
+ * release while the type insisted it could not. A consumer that needed to send
+ * a screenshot therefore had to cast around our own type — and a cast written
+ * to work around a library is a thing the next consumer copies.
+ *
+ * Backward compatible by construction: every existing caller passes a string,
+ * and a string is still a `ChatMessage["content"]`.
+ */
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | ContentPart[];
   /** Present on `role: "tool"` replies; passed through untouched. */
   tool_call_id?: string;
   name?: string;
