@@ -27,30 +27,51 @@ import type { Classification } from "./types.js";
  * Every entry names tools or functions explicitly. Deliberately absent:
  * "invalid request", "bad parameter", "unsupported" on its own — each of those
  * appears in vendor 400s for a dozen unrelated reasons, and a match on one of
- * them would silently disable a working model. When in doubt the answer is to
- * record nothing; an unobserved model gets asked again on the next message,
- * whereas a wrongly-negative one does not.
+ * them would silently disable a working model.
+ *
+ * But "when in doubt, record nothing" is only cheap for a caller that can
+ * retry freely, and the real caller cannot. A caller that sends definitions
+ * ALSO drops whatever prose fallback it has, because definitions are supposed
+ * to replace it — so a refusal this list fails to recognise costs a whole turn
+ * in which the model can neither call a tool nor be told how to act without
+ * one, and it costs that turn EVERY turn, forever, because nothing is ever
+ * learned. A missed phrasing is not one wasted request; it is a permanently
+ * mute model.
+ *
+ * So the bar is: does the vendor NAME tools or functions, and NEGATE support?
+ * Both halves, explicitly. Everything meeting that bar belongs here, including
+ * the boring grammatical variants — plural, `are`, `cannot use` — which is
+ * where the first real gap was found (`tools are not supported by this model`
+ * matched nothing at all).
  */
 const TOOLS_UNSUPPORTED_PATTERNS: RegExp[] = [
-  /tool[\s_-]?(use|call|calls|calling)\s+(is\s+)?(not|un)[\s_-]?support/i,
+  /tool[\s_-]?(use|call|calls|calling)\s+(is\s+|are\s+)?(not|un)[\s_-]?support/i,
   /does\s+not\s+support\s+tool/i,
   /doesn'?t\s+support\s+tool/i,
   /no\s+support\s+for\s+tool/i,
-  /function[\s_-]?call(ing)?\s+(is\s+)?(not|un)[\s_-]?support/i,
+  /function[\s_-]?call(ing)?\s+(is\s+|are\s+)?(not|un)[\s_-]?support/i,
   /does\s+not\s+support\s+function/i,
   /doesn'?t\s+support\s+function/i,
   /model\s+.{0,60}?\s+does\s+not\s+support\s+(the\s+)?(`?tools`?|`?functions`?)/i,
   /unsupported\s+parameter:?\s*'?"?tools?"?'?/i,
   /unknown\s+(field|parameter):?\s*'?"?tools?"?'?/i,
-  /`?tools`?\s+is\s+not\s+(a\s+)?(valid|supported|allowed)/i,
+  // "tools are not supported", "tool is not valid", "functions are unsupported".
+  // The singular-and-`is` form of this was already here; the plural-and-`are`
+  // form is the one vendors actually write, and it matched nothing.
+  /`?(tools?|functions?)`?\s+(is|are)\s+(not\s+(a\s+)?(valid|supported|allowed|available)|unsupported)/i,
+  // "this model cannot use tools" / "can't call functions".
+  /(cannot|can'?t|is\s+unable\s+to)\s+(use|call|handle|execute)\s+(`?tools?`?|`?functions?`?)/i,
+  // "no tool support", "without function support".
+  /no\s+(`?tools?`?|`?functions?`?)\s+support/i,
 ];
 
 /**
  * Does this error body explicitly say the model cannot do tools?
  *
- * Conservative on purpose — see the header. A false positive here is a model
- * permanently downgraded for a reason nobody can see; a false negative just
- * means we ask again next time, which costs one request.
+ * Conservative on purpose — see the header. Both failures are real and neither
+ * is free: a false positive downgrades a working model for a reason nobody can
+ * see, and a false negative leaves the caller repeating a request it will
+ * never learn from. Match on "names tools AND negates support", nothing looser.
  */
 export function saysToolsUnsupported(body: string): boolean {
   if (!body) return false;
