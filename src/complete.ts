@@ -61,6 +61,7 @@ import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
 import type { HealthTracker } from "./health.js";
 import { classifyRateLimit, retryAfterSeconds, type RateLimitKind } from "./limits.js";
 import { readQuota, readingFromRefusal, type QuotaReading } from "./meter.js";
+import { parseTextToolCalls, stripToolCallLines, toolNamesFrom } from "./tool-protocol.js";
 
 /** One message in the OpenAI chat-completions shape every provider here speaks. */
 export interface ChatMessage {
@@ -76,9 +77,11 @@ export interface ChatMessage {
  * actually answer on.
  *
  * Both exist in the default chain: of nine free models probed live, four
- * answered with native `tool_calls` and five only in text. Callers get the
- * native shape here; parsing the text protocol is the caller's business,
- * because its convention differs per app.
+ * answered with native `tool_calls` and five only in text — and three of the
+ * seven models shipped in the chain today are in that second group. Since 1.4.0
+ * both are read here, so a caller no longer has to know which half of the chain
+ * answered. See `toolProtocol` on CompleteOptions, and tool-protocol.ts for why
+ * a native-only read is a fabrication path rather than a missing feature.
  */
 export interface ToolCall {
   id: string;
@@ -145,6 +148,23 @@ export interface CompleteOptions {
   temperature?: number;
   /** Tool definitions in the OpenAI shape; passed through untouched. */
   tools?: unknown[];
+  /**
+   * Which tool-call protocols to READ from the reply. Default `"both"`.
+   *
+   * `"both"` also parses the `TOOL:` / `ARGS:` line protocol out of ordinary
+   * content and strips those lines from `text`. This matters more than it
+   * sounds: three of the seven models in the default chain cannot emit a native
+   * tool call at all, and a native-only read hands their narration back as a
+   * finished answer. The turn then reports a lookup that never happened.
+   *
+   * Parsing is skipped entirely when no `tools` are supplied — a model does not
+   * narrate a call it was never offered — so this is inert for the callers who
+   * do not use tools, which today is all of them.
+   *
+   * Set `"native"` only if you parse the text protocol yourself and would
+   * otherwise execute each call twice.
+   */
+  toolProtocol?: "both" | "native";
   /** Extra body fields for a vendor-specific parameter. Merged last, so it can override. */
   extraBody?: Record<string, unknown>;
   /**
@@ -432,11 +452,31 @@ async function callLink(
 
   const choice = (parsed as { choices?: Array<{ message?: Record<string, unknown> }> })
     ?.choices?.[0];
-  const content = firstText(choice?.message);
-  const toolCalls = toolCallsFrom(choice?.message);
+  const rawContent = firstText(choice?.message);
+  const native = toolCallsFrom(choice?.message);
+
+  // Read the line protocol out of the prose as well, unless the caller opted
+  // out or offered no tools. Native wins on a tie: a model that emits BOTH the
+  // real call and a prose echo of it must not run the tool twice — that wastes
+  // a round trip and can double-propose an action.
+  const wantsText = (options.toolProtocol ?? "both") === "both" && (options.tools?.length ?? 0) > 0;
+  const fromText = wantsText
+    ? parseTextToolCalls(rawContent, toolNamesFrom(options.tools)).filter((c) => {
+        const key = `${c.name}:${c.args}`;
+        return !native.some((n) => `${n.name}:${n.args}` === key);
+      })
+    : [];
+
+  const toolCalls = [...native, ...fromText];
+  // Strip the protocol lines only when they were actually read as calls.
+  // Removing them without parsing would delete the evidence and leave a shorter
+  // hallucination behind, which is worse than either extreme.
+  const content = fromText.length > 0 ? stripToolCallLines(rawContent) : rawContent;
 
   // A 200 that carries neither text nor a tool call is an outage wearing a
   // success code — see the header. Demote, so the chain gets its chance.
+  // Note the ordering: a reply that was ONLY a narrated call is now empty text
+  // WITH tool calls, which is a valid turn, not an outage.
   if (content.trim() === "" && toolCalls.length === 0) {
     throw new LinkFailure(
       link,

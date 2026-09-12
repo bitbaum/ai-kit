@@ -48,6 +48,12 @@ test("the package exports its public surface through the exports map", () => {
     "shouldSurface",
     "nextUtcReset",
     "DEFAULT_LADDER",
+    // tool-protocol
+    "parseTextToolCalls",
+    "stripToolCallLines",
+    "safeJsonObject",
+    "toolNamesFrom",
+    "TEXT_TOOL_PROTOCOL_HINT",
   ];
   for (const name of expected) {
     assert.ok(name in pkg, `missing export: ${name}`);
