@@ -201,7 +201,25 @@ function properNounRuns(text: string): string[] {
   const out: string[] = [];
   // Strip fenced and inline code — quoted identifiers are usually the user's
   // own or a literal under discussion, not a claim about the world.
-  const prose = text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
+  //
+  // Markdown table pipes become line breaks for the same reason a full stop is
+  // a boundary: a cell is its own utterance, and a run must not span two of
+  // them. Observed on a live answer that laid its findings out as a table —
+  // the header row `| Category | Item | Status | Notes |` yielded the runs
+  // "Item" and "Item Status Notes Pending", the last of those having run on
+  // into the FIRST CELL OF THE NEXT ROW. The answer was entirely grounded and
+  // was reported as fabricating, which is the worst direction for this check
+  // to fail in: a warning that fires on correct answers teaches the operator
+  // to dismiss the warning.
+  //
+  // Splitting per cell also makes each header word cell-initial, and
+  // sentence-initial single words are already skipped for exactly this reason.
+  // Recall is barely touched: a fabricated name INSIDE a cell still trips its
+  // remaining tokens, the same trade already accepted at sentence starts.
+  const prose = text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/\|/g, "\n");
 
   for (const sentence of prose.split(/(?<=[.!?:\n])\s+/)) {
     const tokens = sentence.match(/[A-Za-z][A-Za-z0-9&.'’-]*/g) ?? [];
