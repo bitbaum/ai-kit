@@ -177,10 +177,46 @@ export function freeChain(prefix = "AI"): Provider[] {
       // (non-chain) calls used the same id and had no fallback at all, was
       // silently down for eight days. Both ids below answered with a correct
       // native tool_call when probed, which is the bar this list is held to.
-      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
-      // Not a guess: Groq's own TPD refusal names it — "on tokens per day
-      // (TPD): Limit 100000". Org-wide, so every feature sharing the key draws
-      // from this same pool.
+      // Four links, not two, and the extra two are the direct consequence of
+      // the per-MODEL rationing documented above: each id carries its own
+      // minute window, so a same-vendor link IS real headroom here.
+      //
+      // Probed live 2026-09-13 with a real tool call, same prompt the loop
+      // sends. Protocol each answered on, and the window each reported back
+      // within the same minute — three distinct counters, which is the whole
+      // argument for listing them:
+      //
+      //   openai/gpt-oss-120b   native   7,551 / 8,000 tokens this minute
+      //   openai/gpt-oss-20b    native
+      //   qwen/qwen3.8-27b      text     7,360 / 8,000
+      //   qwen/qwen3.6-27b      text     7,362 / 8,000
+      //
+      // The Qwen pair answer via the TEXT protocol only — no native
+      // `tool_calls` — which is exactly the case a native-only client loses
+      // silently, and exactly why `complete()` parses both. They sit after the
+      // native pair because native is the surer parse, not because they are
+      // weaker: both returned correct arguments, and both carry 131k context.
+      //
+      // They also sit BEFORE OpenRouter deliberately. OpenRouter's unpaid tier
+      // is 50 REQUESTS a day for the whole account, so every Groq pool worth
+      // draining should be drained before one of those 50 is spent.
+      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "qwen/qwen3.6-27b"],
+      // Deliberately NOT raised alongside the model count, and that is the
+      // whole point of the split documented at the top of this file: requests
+      // and TPM ration per MODEL, the daily TOKEN pool does not. Four links
+      // therefore buy four minute windows and four request counters — real
+      // headroom, most of the time — and not one extra daily token.
+      //
+      // Multiplying this by the model count would be the precise failure this
+      // field's contract warns about: fair-share handing out shares of capacity
+      // that does not exist, with the wall arriving later in the day and harder
+      // to diagnose.
+      //
+      // The figure stays below what one key was seen to grant — Groq's own TPD
+      // refusal read "Limit 200000" on 2026-09-13 — because free tiers differ
+      // per account and the instruction on this field is to estimate LOW.
+      // Under-promising costs a few rationed turns; over-promising costs the
+      // rationing.
       dailyTokens: 100_000,
     }),
     withEnvPrefix(prefix, {
