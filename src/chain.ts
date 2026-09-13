@@ -173,7 +173,7 @@ export function freeChain(prefix = "AI"): Provider[] {
       // Re-probed 2026-08-25 against the live catalog. The previous pins,
       // `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`, were BOTH gone —
       // so this "fallback chain" led with a fully dead vendor and every caller
-      // paid two 404s before reaching OpenRouter. FleetCrown, whose direct
+      // paid two 404s before reaching OpenRouter. Loki, whose direct
       // (non-chain) calls used the same id and had no fallback at all, was
       // silently down for eight days. Both ids below answered with a correct
       // native tool_call when probed, which is the bar this list is held to.

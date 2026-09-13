@@ -4,7 +4,7 @@ exports.buildRepairPrompt = exports.verifyAnswer = exports.buildGroundedContext 
 /**
  * The grounding harness — imported, no longer mirrored.
  *
- * These three modules were born in FleetCrown (`src/lib/agent/core/`) and
+ * These three modules were born in Loki (`src/lib/agent/core/`) and
  * lived as a byte-identical mirror in OrangeCat, guarded by a SHA-256 drift
  * check, because both assistants had the same failure: a model asked to fill
  * a rigid answer format against thin context invents the missing parts, and

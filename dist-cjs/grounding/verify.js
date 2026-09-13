@@ -23,7 +23,7 @@ exports.buildRepairPrompt = buildRepairPrompt;
  *   "Ilya Druzhnikov (UZH)"                    → UZH: novel acronym
  *   "Accelerator & Bridge Program Manager"     → novel proper-noun run
  *   "University of Liechtenstein", "START Summit" → novel proper-noun runs
- *   "/opt/fleetcrown/runner/.env"              → novel path
+ *   "/opt/loki/runner/.env"              → novel path
  *
  * while the true parts ("Elena Weber SINGA Switzerland", "+41774730093") appear
  * verbatim in the records and pass clean.
@@ -114,7 +114,7 @@ const COMMON = new Set([
     // This system's own nouns
     "loki",
     "cat",
-    "fleetcrown",
+    "loki",
     "orangecat",
     "not",
     "recorded",
@@ -247,7 +247,7 @@ function numericClaims(text) {
  * File and path references — a favourite fabrication, and an unusually
  * damaging one because naming a file implies the model READ it.
  *
- * Covers absolute paths (`/opt/fleetcrown/runner/.env`), relative paths
+ * Covers absolute paths (`/opt/loki/runner/.env`), relative paths
  * (`data/contact-resolver.json`), and bare filenames with a data/config
  * extension. The relative form matters: when challenged on the UZH claim, the
  * model "corrected" itself by asserting what `data/contact-resolver.json`
@@ -389,7 +389,7 @@ function verifyAnswer(input) {
             detail: `The number "${num}" is not in any record. Do not state contact details, dates, or metrics that were not provided.`,
         });
     }
-    // 4. Paths — "update the key in /opt/fleetcrown/runner/.env" was invented
+    // 4. Paths — "update the key in /opt/loki/runner/.env" was invented
     //    wholesale, and its specificity is what made it convincing.
     for (const p of pathClaims(answer)) {
         if (evidence.includes(norm(p)))
