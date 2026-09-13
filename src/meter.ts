@@ -249,6 +249,72 @@ export function readingFromRefusal(
 }
 
 /**
+ * The counter a vendor discloses ONLY when it refuses.
+ *
+ * ── WHY A BODY PARSER EARNS ITS KEEP ─────────────────────────────────────────
+ *
+ * Headers do not describe every limit a vendor enforces. Groq publishes its
+ * per-minute token window and its per-day REQUEST count as headers, and meters
+ * a third limit — tokens per DAY — that appears in no header at all. It is
+ * stated once, in prose, in the body of the 429 that enforces it:
+ *
+ *   Rate limit reached for model `openai/gpt-oss-20b` in organization `org_…`
+ *   service tier `on_demand` on tokens per day (TPD): Limit 200000,
+ *   Used 199773, Requested 571. Please try again in 2m28.608s.
+ *
+ * Observed on production 2026-09-13. Every header the same response carried
+ * looked healthy — 2,672 of 8,000 tokens left this minute, 999 of 1,000
+ * requests left today — while the account was locked out of the model for the
+ * rest of the day. A dashboard fed only by headers therefore reported a
+ * working provider throughout an outage, which is precisely the failure the
+ * top of this file exists to prevent, arriving through a door it left open.
+ *
+ * ── STILL NEVER INVENTS ──────────────────────────────────────────────────────
+ *
+ * Returns null unless the body states the numbers. An unparsed refusal is the
+ * "did not say" state, and the caller should fall back to `readingFromRefusal`,
+ * which records the one fact a 429 always carries: spent, now.
+ */
+const REFUSAL_COUNTER =
+  /on\s+(tokens|requests)\s+per\s+(minute|day)\s*\([^)]*\)\s*:\s*Limit\s+(\d+)\s*,\s*Used\s+(\d+)/i;
+
+export function readingFromRefusalBody(
+  link: Link,
+  body: string,
+  retryAfterSec: number | null = null,
+  now = Date.now(),
+): QuotaReading | null {
+  const m = REFUSAL_COUNTER.exec(body);
+  if (!m) return null;
+
+  const [, rawScope, rawWindow, rawLimit, rawUsed] = m;
+  if (!rawScope || !rawWindow || !rawLimit || !rawUsed) return null;
+
+  const scope = rawScope.toLowerCase() as QuotaScope;
+  const window = rawWindow.toLowerCase() as QuotaWindow;
+  const limit = Number(rawLimit);
+  const used = Number(rawUsed);
+  if (!Number.isFinite(limit) || !Number.isFinite(used)) return null;
+
+  return {
+    provider: link.provider.id,
+    model: link.model,
+    scope,
+    // Straight from the vendor's own sentence, so unlike a header name this
+    // window is not a guess and must not be overridden by the provider profile.
+    window,
+    limit,
+    // The refusal names what was consumed, not what is left. Clamped because a
+    // vendor counting a rejected request against the total would otherwise
+    // produce a negative "remaining" and a dashboard that renders nonsense.
+    remaining: Math.max(0, limit - used),
+    resetAt: retryAfterSec === null ? null : now + retryAfterSec * 1000,
+    source: "429-body",
+    observedAt: now,
+  };
+}
+
+/**
  * Turn a remaining-token count into the unit a person thinks in.
  *
  * Nobody has an intuition for a token. "About 40 more answers" is actionable;
