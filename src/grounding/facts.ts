@@ -24,7 +24,7 @@
  * and `verify.ts` can check citations mechanically rather than by vibes.
  *
  * Pure: no DB, no network, no framework. Apps map their rows into Facts via
- * their own adapters (FleetCrown: src/lib/agent/sources; OrangeCat: services/cat/sources).
+ * their own adapters (Loki: src/lib/agent/sources; OrangeCat: services/cat/sources).
  */
 
 /** A field that is declared for a record kind but has no stored value. */

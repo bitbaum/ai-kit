@@ -5,7 +5,7 @@
 # without someone remembering". Nothing ran it. The rot it exists to catch then
 # happened anyway: on 2026-08-25 four of nine default pins were already retired,
 # including BOTH Groq models — so `freeChain()` led with a vendor that could not
-# answer, and every consumer inherited it. FleetCrown, on the same dead id
+# answer, and every consumer inherited it. Loki, on the same dead id
 # without a fallback, was silently down for eight days.
 #
 # A detector nobody runs is a comment. This runs it.
