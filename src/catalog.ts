@@ -23,6 +23,7 @@
  */
 
 import { providerModels, type Env, type Provider } from "./chain.js";
+import { fetchCatalog } from "./catalog-fetch.js";
 
 export type CatalogVerdict = {
   provider: string;
@@ -50,31 +51,27 @@ export type CheckCatalogOptions = {
   timeoutMs?: number;
 };
 
-/** Ids listed by one provider, or null when the catalogue could not be read. */
+/**
+ * Ids listed by one provider, or null when the catalogue could not be read.
+ *
+ * The request itself now lives in catalog-fetch.ts, because `resolve.ts` needs
+ * the SAME GET and the ids alone cannot tell it what a model costs or can do.
+ * Two near-identical fetches drifting apart is the failure this module's own
+ * header objects to; one fetch, two readers.
+ *
+ * Every null case is preserved exactly — no key, network failure, non-200,
+ * unparseable body, and a body that parses but lists nothing (a malformed
+ * answer, not a vendor with no models: refusing it keeps a bad response from
+ * reading as total rot).
+ */
 async function liveIds(
   provider: Provider,
   key: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
 ): Promise<string[] | null> {
-  try {
-    const res = await fetchImpl(`${provider.baseUrl.replace(/\/$/, "")}/models`, {
-      headers: { Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { data?: Array<{ id?: unknown }> };
-    if (!Array.isArray(body?.data)) return null;
-    const ids = body.data
-      .map((m) => (typeof m?.id === "string" ? m.id : ""))
-      .filter((id): id is string => id.length > 0);
-    // A catalogue that parses but lists nothing is a malformed answer, not a
-    // vendor with no models. Refusing it keeps a bad response from reading as
-    // total rot.
-    return ids.length > 0 ? ids : null;
-  } catch {
-    return null;
-  }
+  const records = await fetchCatalog(provider.baseUrl, key, { fetchImpl, timeoutMs });
+  return records ? records.map((r) => r.id) : null;
 }
 
 /**

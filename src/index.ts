@@ -75,6 +75,22 @@ export {
   catalogReport,
 } from "./catalog.js";
 
+export { type ModelRecord, type FetchCatalogOptions, fetchCatalog } from "./catalog-fetch.js";
+
+// Resolution is the answer to the question `catalog` only asks. checkCatalog
+// REPORTS that a pinned id is gone; resolveChain drops it and calls the next
+// one, so a vendor retirement stops needing a pull request to survive.
+export {
+  type Requirements,
+  type ResolveOptions,
+  type ProviderResolution,
+  resolveChain,
+  applyResolution,
+  routedAroundRot,
+  emptyProviders,
+  resolutionReport,
+} from "./resolve.js";
+
 export {
   type ChainAttemptFailure,
   type TryChainOptions,
