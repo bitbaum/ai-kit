@@ -9,7 +9,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { readQuota, readingFromRefusal, parseResetAt, answersRemaining } from "@bitbaum/ai-kit";
+import {
+  readQuota,
+  readingFromRefusal,
+  readingFromRefusalBody,
+  parseResetAt,
+  answersRemaining,
+} from "@bitbaum/ai-kit";
 
 /** Minimal Headers stand-in — case-insensitive, like the real thing. */
 function headers(map) {
@@ -156,6 +162,57 @@ test("a refusal with no stated wait still records the emptiness", () => {
   const reading = readingFromRefusal(link("openrouter"), null, "requests", NOW);
   assert.equal(reading.remaining, 0);
   assert.equal(reading.resetAt, null);
+});
+
+// ── The counter that exists ONLY in the refusal ─────────────────────────────
+// Captured from production on 2026-09-13. Every header on this same response
+// looked healthy — 2,672 of 8,000 tokens left this minute, 999 of 1,000
+// requests left today — while the account was locked out of the model for the
+// rest of the day by a limit no header mentions.
+const GROQ_TPD_BODY =
+  '{"error":{"message":"Rate limit reached for model `openai/gpt-oss-20b` in ' +
+  "organization `org_01jy16rk1yffks8jdsmfn4s7rj` service tier `on_demand` on " +
+  "tokens per day (TPD): Limit 200000, Used 199773, Requested 571. Please try " +
+  'again in 2m28.608s."}}';
+
+test("the daily TOKEN pool is read out of the refusal, because no header carries it", () => {
+  const reading = readingFromRefusalBody(link("groq"), GROQ_TPD_BODY, 149, NOW);
+  assert.equal(reading.scope, "tokens");
+  assert.equal(
+    reading.window,
+    "day",
+    "TPD is a DAY limit; calling it a minute understates it 1440x",
+  );
+  assert.equal(reading.limit, 200000);
+  assert.equal(
+    reading.remaining,
+    227,
+    "the vendor states USED; remaining is what the dashboard needs",
+  );
+  assert.equal(reading.source, "429-body");
+  assert.equal(reading.resetAt, NOW + 149_000);
+});
+
+test("a refusal that states no numbers yields NOTHING, not a zero", () => {
+  // OpenRouter's daily refusal names no counter in this form. Inventing a
+  // reading here would be the "reports a full tank during an outage" bug with
+  // the sign flipped — an invented outage.
+  const body =
+    '{"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 ' +
+    'credits to unlock 1000 free model requests per day","code":429}}';
+  assert.equal(readingFromRefusalBody(link("openrouter"), body, null, NOW), null);
+});
+
+test("a vendor counting the rejected request against the total cannot go negative", () => {
+  const body = "on tokens per day (TPD): Limit 200000, Used 200571, Requested 571.";
+  assert.equal(readingFromRefusalBody(link("groq"), body, null, NOW).remaining, 0);
+});
+
+test("the per-MINUTE refusal is read as a minute, not folded into the day", () => {
+  const body = "on tokens per minute (TPM): Limit 8000, Used 7900, Requested 571.";
+  const reading = readingFromRefusalBody(link("groq"), body, null, NOW);
+  assert.equal(reading.window, "minute");
+  assert.equal(reading.remaining, 100);
 });
 
 // ── Translation into the unit a person thinks in ────────────────────────────
