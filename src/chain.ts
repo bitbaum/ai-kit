@@ -11,11 +11,26 @@
  *
  *   ACROSS MODELS  — a rotted or momentarily busy model steps aside for the
  *                    next one.
- *   ACROSS VENDORS — the one that actually buys headroom. Stepping down to a
- *                    smaller model at the SAME vendor draws on the SAME org-wide
- *                    daily budget, so when the day runs dry every link in that
- *                    "fallback" is already dead. Only a different vendor has a
- *                    different meter.
+ *   ACROSS VENDORS — usually the one that actually buys headroom, because the
+ *                    vendor's daily TOKEN budget is typically org-wide: when the
+ *                    day runs dry, every model behind that key is dry with it.
+ *
+ * That second rule needs one correction, because taken absolutely it is wrong
+ * and it costs free capacity. Groq rations REQUESTS and TPM per MODEL. Measured
+ * from `x-ratelimit-*` headers on one key, within the same minute, 2026-09-13:
+ *
+ *     openai/gpt-oss-20b    591 / 1000 requests remaining   (the model in use)
+ *     openai/gpt-oss-120b   999 / 1000
+ *     qwen/qwen3.8-27b      999 / 1000
+ *
+ * Separate counters, and separate 8000-token windows. Only the tokens-per-DAY
+ * figure is org-wide. So a second model at the same vendor IS a real fallback
+ * while you are request- or TPM-limited — the common case — and stops being one
+ * once the org-wide TPD is spent. Worth knowing precisely, because the vendor
+ * after Groq is often OpenRouter's free tier at 50 requests/day.
+ *
+ * The general rule stands: check the vendor's own headers rather than assuming
+ * one pool per account. `meter` reads them off calls already made.
  *
  * Every provider here speaks the OpenAI chat-completions shape, so adding one is
  * a row in a table rather than a new client.
