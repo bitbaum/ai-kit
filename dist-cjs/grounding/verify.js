@@ -310,15 +310,39 @@ function verifyAnswer(input) {
         : answer;
     // 1. Citations must resolve. A citation to a record that does not exist is
     //    the strongest possible signal of fabrication — it invents its own proof.
-    for (const cite of answer.match(/\[[FD]\d+\]/g) ?? []) {
-        const id = cite.slice(1, -1).toUpperCase();
-        if (!legalIds.has(id)) {
-            violations.push({
-                kind: "unknown-citation",
-                text: cite,
-                detail: `${cite} is not a record in this turn's context. Cite only ids that were provided, or say there is no record.`,
-            });
-        }
+    //
+    //    Bracket SHAPE is not part of that signal, and reading it as if it were
+    //    opened a hole straight through this rule. Two models were observed on
+    //    2026-09-13 writing the fullwidth CJK form instead of the ASCII one —
+    //    `openai/gpt-oss-120b` and `groq/compound-mini`, both unprompted, from a
+    //    prompt whose every example used `[F1]`:
+    //
+    //        The most recent feedback concerned project **Heidi**【F3】.
+    //
+    //    An ASCII-only match does not flag those as bad citations. It does not see
+    //    them at all — so `【F9】` against a turn with three records sails past the
+    //    one check written to catch invented proof, while `[F9]` is caught. The
+    //    surrounding rules do not cover the gap either: a false citation attached
+    //    to an otherwise attested claim trips neither the proper-noun rule nor the
+    //    number rule.
+    //
+    //    So the brackets are normalised before matching, and the citation is
+    //    reported back in the form the model actually wrote — the author has to
+    //    find it in their answer.
+    //    Every substitution below is one character for one character, so offsets
+    //    into the normalised copy still address the original — which is how the
+    //    reported text stays verbatim.
+    const normalisedCitations = answer.replace(/[【〔［]/g, "[").replace(/[】〕］]/g, "]");
+    for (const m of normalisedCitations.matchAll(/\[[FD]\d+\]/g)) {
+        const id = m[0].slice(1, -1).toUpperCase();
+        if (legalIds.has(id))
+            continue;
+        const asWritten = answer.slice(m.index, m.index + m[0].length);
+        violations.push({
+            kind: "unknown-citation",
+            text: asWritten,
+            detail: `${asWritten} is not a record in this turn's context. Cite only ids that were provided, or say there is no record.`,
+        });
     }
     // 2. Named entities must be traceable. This is the anti-"UZH" rule.
     const seen = new Set();

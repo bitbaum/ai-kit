@@ -52,6 +52,42 @@ test("the canonical fabrication is caught: a novel proper noun with no source", 
   assert.ok(violations.some((v) => v.kind === "novel-proper-noun"));
 });
 
+// ── A citation is its ID, not its bracket shape ─────────────────────────────
+// Observed 2026-09-13: `openai/gpt-oss-120b` and `groq/compound-mini` both
+// answered with the fullwidth CJK brackets, unprompted, from a prompt whose
+// every example used [F1]. An ASCII-only match does not flag those as bad — it
+// cannot see them, so an invented citation in that shape sails past the one
+// rule written to catch invented proof.
+
+test("an invented citation is caught in FULLWIDTH brackets too", () => {
+  const { ok, violations } = verifyAnswer({
+    answer: "Elena Weber is at SINGA Switzerland\u3010F9\u3011.",
+    facts: elena(),
+    userMessage: "who should I contact?",
+  });
+  assert.equal(ok, false, "F9 is not a record in this turn");
+  const cite = violations.find((v) => v.kind === "unknown-citation");
+  assert.ok(cite, JSON.stringify(violations));
+  assert.equal(
+    cite.text,
+    "\u3010F9\u3011",
+    "reported as the model wrote it, so the author can find it",
+  );
+});
+
+test("a VALID citation in fullwidth brackets is not turned into a violation", () => {
+  const { violations } = verifyAnswer({
+    answer: "Elena Weber (SINGA Switzerland)\u3010F1\u3011.",
+    facts: elena(),
+    userMessage: "who should I contact?",
+  });
+  assert.equal(
+    violations.filter((v) => v.kind === "unknown-citation").length,
+    0,
+    JSON.stringify(violations),
+  );
+});
+
 test("the true answer passes clean — names and numbers attested by the records", () => {
   const facts = elena();
   const { ok, violations } = verifyAnswer({
