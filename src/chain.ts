@@ -197,9 +197,11 @@ export function freeChain(prefix = "AI"): Provider[] {
       // native pair because native is the surer parse, not because they are
       // weaker: both returned correct arguments, and both carry 131k context.
       //
-      // They also sit BEFORE OpenRouter deliberately. OpenRouter's unpaid tier
-      // is 50 REQUESTS a day for the whole account, so every Groq pool worth
-      // draining should be drained before one of those 50 is spent.
+      // They also sit BEFORE OpenRouter deliberately, as does Google below.
+      // OpenRouter's unpaid tier is 50 REQUESTS a day for the whole account, so
+      // every other pool worth draining should be drained before one of those
+      // 50 is spent. That makes OpenRouter the LAST link rather than a middle
+      // one, despite being the widest catalogue.
       models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "qwen/qwen3.6-27b"],
       // Deliberately NOT raised alongside the model count, and that is the
       // whole point of the split documented at the top of this file: requests
@@ -218,6 +220,57 @@ export function freeChain(prefix = "AI"): Provider[] {
       // Under-promising costs a few rationed turns; over-promising costs the
       // rationing.
       dailyTokens: 100_000,
+    }),
+    withEnvPrefix(prefix, {
+      id: "google",
+      // The OpenAI-COMPATIBLE surface, and it took a real key to establish that
+      // it exists at all. Unkeyed, `/v1beta/openai/models` answers 404 — which
+      // is why this vendor was written off once as "the compat layer likely
+      // serves /chat/completions without a catalogue, so its ids could never be
+      // rot-checked". With a key the same path answers 200 and lists 56 models.
+      // An unkeyed probe cannot tell "absent" from "hidden behind auth", in
+      // either direction.
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      keyEnv: "GEMINI_API_KEY",
+      // ── THE `models/` PREFIX IS LOAD-BEARING ────────────────────────────────
+      // The catalogue lists all 56 ids prefixed, with NO bare form anywhere,
+      // while /chat/completions accepts BOTH (verified 2026-09-15 across
+      // max_tokens 64/256/1024 — identical answers either way).
+      //
+      // So a bare `gemini-flash-latest` would serve perfectly in production AND
+      // be reported missing by `checkCatalog` on every run. That is a permanent
+      // false rot alarm about a model that works, which is worse than no alarm:
+      // it teaches the reader to ignore the one that matters.
+      //
+      // ── ALIASES, NOT VERSIONS ───────────────────────────────────────────────
+      // `-latest` is repointed by Google as the model behind it retires, the
+      // same property that makes `openrouter/free` the most durable entry in
+      // the list below. Not theoretical: `gemini-2.5-flash`, the id reached for
+      // from memory, is already refused for new accounts — "no longer available
+      // to new users, please update your code to use models/gemini-3.6-flash".
+      //
+      // `gemma-4-31b-it` is last and earns its place differently: Google's
+      // pricing lists it as free-tier-only with no paid column at all, so it is
+      // the one id here that cannot be quietly reclassified as billable.
+      //
+      // All three answered a real tool-call probe with a NATIVE `tool_calls`
+      // response on 2026-09-15, which is the bar this file holds ids to.
+      models: [
+        "models/gemini-flash-latest",
+        "models/gemini-flash-lite-latest",
+        "models/gemma-4-31b-it",
+      ],
+      // Google publishes no fixed free-tier table — limits are per PROJECT and
+      // shown in AI Studio, and no rate-limit headers come back on a completion
+      // either. So this is a deliberate under-estimate rather than a figure, per
+      // this field's contract: a share of capacity that turns out not to exist
+      // produces the exact wall the rationing exists to prevent.
+      //
+      // Being per-project is itself the point of adding this vendor. Groq's
+      // daily token pool is org-wide and OpenRouter's 50 requests are
+      // account-wide, so on a box where several apps share those keys they
+      // share the exhaustion too. A Google project is one app's own.
+      dailyTokens: 50_000,
     }),
     withEnvPrefix(prefix, {
       id: "openrouter",
