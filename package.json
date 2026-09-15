@@ -1,6 +1,6 @@
 {
   "name": "@bitbaum/ai-kit",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "license": "MIT",
   "author": "Mao Nakamoto",
   "homepage": "https://github.com/bitbaum/ai-kit#readme",
@@ -44,6 +44,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "default": "./dist/sse.js"
     },
     "./forms": {
       "types": "./dist/forms.d.ts",

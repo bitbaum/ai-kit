@@ -124,6 +124,43 @@ budget, nor report "every vendor failed" about vendors that were never asked.
 
 `tryChain` stays for a caller with a genuinely unusual request to make.
 
+### Tokens as they arrive — `completeStream()`, same chain
+
+`complete()` is request/response. Until v1.9 that was the whole API, so every
+app that wanted a live answer used this package to pick the model, classify the
+429 and track health — and then **threw all of it away for the one call that
+matters**, hand-rolling a provider client. Measured across the fleet on
+2026-09-15: six such clients, four SSE readers, four emitters.
+
+```ts
+for await (const d of completeStream({ messages, chain })) {
+  if (d.type === "text") process.stdout.write(d.text);
+  if (d.type === "end") console.log("\nserved by", d.id, d.toolCalls);
+}
+```
+
+Same chain, same 429 rules, same health — `complete()` and `completeStream()`
+walk through one `walkChain`, so they cannot disagree about what a dead vendor
+is. Exactly one `end` event carries the assembled turn, so a caller rendering
+live never has to accumulate the answer twice.
+
+**Fallback stops the moment the reader has seen output, and that is deliberate.**
+A link that fails before its first delta demotes like any other; a link that
+fails after throws `StreamInterrupted`, carrying the partial text. Retrying
+there would replay the answer from the beginning into somebody already reading
+it. So a link counts as "served" only once a first token is really out — a 200
+that then says nothing demotes, the same judgement `complete()` makes about an
+empty completion.
+
+`@bitbaum/ai-kit/sse` has both ends of the wire: `sseResponse()` (the headers
+that actually stream — `no-transform` and `X-Accel-Buffering: no`, without
+which a proxy buffers the whole turn and delivers it in one lump) and
+`readEventStream()`. The reader **keeps the remainder between chunks**. A
+`ReadableStream` chunk is a TCP-sized slice that ends wherever the network put
+the boundary, routinely mid-frame; two of the fleet's hand-rolled readers split
+each chunk on newlines and dropped whatever straddled it, which loses a word
+from a long answer under load and is invisible in every short test.
+
 ### Does it work RIGHT NOW? — a probe, not a guess
 
 ```ts
