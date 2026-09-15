@@ -447,6 +447,19 @@ locally.
 
 ---
 
+## Which providers, and why
+
+[`docs/providers.md`](docs/providers.md) is the register: every inference
+provider looked at, what it actually costs, and the evidence and date behind
+each verdict. It exists because a provider ruled out today for costing money is
+worth revisiting the moment there is a budget — and because the reasons need to
+survive long enough to be re-checked rather than re-guessed.
+
+It also carries the rule that keeps this package honest: **a vendor is only
+"free" once a real key has served a real completion.** An unkeyed 401/403 proves
+only that the host exists, and an unkeyed 404 does not mean absent — both
+mistakes have been made here, in opposite directions, and both shipped.
+
 ## Related
 
 | Package | For |
