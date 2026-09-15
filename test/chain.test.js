@@ -40,11 +40,25 @@ test("capacity counts ONLY vendors we hold a key for", () => {
   const groqOnly = dayCapacityTokens(CHAIN, { GROQ_API_KEY: "x" });
   assert.equal(groqOnly, CHAIN.find((p) => p.id === "groq").dailyTokens);
 
-  const both = dayCapacityTokens(CHAIN, { GROQ_API_KEY: "x", OPENROUTER_API_KEY: "y" });
+  // Keys derived from the chain rather than listed, so adding a vendor cannot
+  // silently turn "all keyed" into "some keyed". The previous version of this
+  // assertion hard-coded two key names and compared against the sum over EVERY
+  // provider — which was the same thing only while the chain had exactly two,
+  // and broke the moment a third was added.
+  const allKeys = Object.fromEntries(CHAIN.map((p) => [p.keyEnv, "x"]));
   assert.equal(
-    both,
+    dayCapacityTokens(CHAIN, allKeys),
     CHAIN.reduce((n, p) => n + p.dailyTokens, 0),
     "capacity must SUM across vendors",
+  );
+
+  // The half that only became testable with a third vendor present: a keyed
+  // subset must contribute exactly its own capacity, not the whole chain's.
+  const [first, second] = CHAIN;
+  assert.equal(
+    dayCapacityTokens(CHAIN, { [first.keyEnv]: "x", [second.keyEnv]: "y" }),
+    first.dailyTokens + second.dailyTokens,
+    "an unkeyed vendor must contribute nothing to the total",
   );
 });
 
@@ -112,4 +126,47 @@ test("withEnvPrefix derives both override names from the provider id", () => {
   });
   assert.equal(p.modelsEnv, "APP_MY_VENDOR_MODELS");
   assert.equal(p.dailyTokensEnv, "APP_MY_VENDOR_DAILY_TOKENS");
+});
+
+test("Google's ids are the ones its CATALOGUE lists, not the bare form", () => {
+  // The trap this exists for, caught before it shipped.
+  //
+  // Google's compat catalogue lists all 56 ids with a `models/` prefix and no
+  // bare form anywhere, while /chat/completions accepts BOTH (verified
+  // 2026-09-15 across max_tokens 64/256/1024 — identical answers).
+  //
+  // So a bare `gemini-flash-latest` serves perfectly AND is reported missing by
+  // checkCatalog on every run: a permanent false rot alarm about a model that
+  // works, which is worse than no alarm because it teaches the reader to ignore
+  // the one that matters.
+  const google = CHAIN.find((p) => p.id === "google");
+  assert.ok(google, "google is missing from the free chain");
+  for (const model of google.models) {
+    assert.ok(
+      model.startsWith("models/"),
+      `google id must be the catalogue's prefixed form: ${model}`,
+    );
+  }
+});
+
+test("Google leads with an ALIAS, which is what survives a retirement", () => {
+  // `gemini-2.5-flash` — the id reached for from memory — is already refused
+  // for new accounts. `-latest` is repointed by Google as the model behind it
+  // retires, the same property that makes `openrouter/free` durable.
+  const google = CHAIN.find((p) => p.id === "google");
+  assert.ok(
+    google.models[0].includes("-latest"),
+    `google should lead with an alias, not a pinned version: ${google.models[0]}`,
+  );
+});
+
+test("OpenRouter is LAST, because its 50/day is the scarcest pool", () => {
+  // Ordering is capacity, not preference. OpenRouter's unpaid tier is 50
+  // REQUESTS a day for the whole ACCOUNT — and on a shared box that account is
+  // shared too — so every other pool is drained before one of those is spent.
+  assert.equal(
+    CHAIN[CHAIN.length - 1].id,
+    "openrouter",
+    "OpenRouter must be the last link in the free chain",
+  );
 });
