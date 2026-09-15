@@ -7,9 +7,33 @@
  * gets it wrong. The rules here are not new; they were extracted from
  * `complete()` unchanged, and its test suite is what proves they survived.
  */
-import { type Link, chainFrom, freeChain, usableChain } from "./chain.js";
+import { type Env, type Link, type Provider, chainFrom, freeChain, usableChain } from "./chain.js";
 import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
-import { LinkFailure, linkId, type CompleteOptions } from "./complete.js";
+import { LinkFailure, linkId } from "./complete.js";
+import type { HealthTracker } from "./health.js";
+
+/**
+ * What the walk itself needs, which is less than any one caller passes.
+ *
+ * `CompleteOptions` satisfies this structurally and did not have to change —
+ * the point of naming the subset is that a caller with a DIFFERENT payload can
+ * reuse the routing. `transcribe()` sends audio rather than messages, and
+ * without this it would have had to fake a `messages` field to borrow the walk,
+ * or copy thirty lines of "is this vendor dead" logic that must not be allowed
+ * to have two answers.
+ */
+export interface WalkOptions {
+  /** Links to try, in order. Defaults to every free provider with a key. */
+  chain?: Link[];
+  providers?: Provider[];
+  /** Start at this model rather than the front, falling through to the rest. */
+  model?: string;
+  env?: Env;
+  health?: HealthTracker;
+  /** The caller's cancellation, covering the whole walk. */
+  signal?: AbortSignal;
+  onLinkFailure?: (link: Link, error: Error) => void;
+}
 
 /**
  * Try each link until one works, and return what it produced.
@@ -23,7 +47,7 @@ import { LinkFailure, linkId, type CompleteOptions } from "./complete.js";
  * the last one.
  */
 export async function walkChain<T>(
-  options: CompleteOptions,
+  options: WalkOptions,
   attempt: (link: Link, key: string) => Promise<T>,
 ): Promise<T> {
   const env = options.env ?? process.env;
