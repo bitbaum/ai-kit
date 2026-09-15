@@ -117,7 +117,8 @@ export {
   sseFrames,
 } from "./stream.js";
 
-export { walkChain } from "./walk.js";
+export { walkChain, type WalkOptions } from "./walk.js";
+export { transcribe, type TranscribeOptions, type TranscribeResult } from "./transcribe.js";
 
 export {
   type HealthStatus,
