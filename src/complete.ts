@@ -56,12 +56,12 @@
  * former. That misdiagnosis cost an hour once; it is not free to repeat.
  */
 
-import { type Env, type Link, type Provider, chainFrom, freeChain, usableChain } from "./chain.js";
-import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
+import type { Env, Link, Provider } from "./chain.js";
 import type { HealthTracker } from "./health.js";
 import { classifyRateLimit, retryAfterSeconds, type RateLimitKind } from "./limits.js";
 import { readQuota, readingFromRefusal, type QuotaReading } from "./meter.js";
 import { parseTextToolCalls, stripToolCallLines, toolNamesFrom } from "./tool-protocol.js";
+import { walkChain } from "./walk.js";
 
 /**
  * A piece of a message, for the models that accept more than text.
@@ -520,69 +520,5 @@ async function callLink(
  * the last one.
  */
 export async function complete(options: CompleteOptions): Promise<CompleteResult> {
-  const env = options.env ?? process.env;
-  const base = options.chain ?? usableChain(options.providers ?? freeChain(), env);
-  const chain = chainFrom(options.model, base);
-
-  const failures: ChainAttemptFailure[] = [];
-  const deadProviders = new Set<string>();
-
-  for (const link of chain) {
-    // A daily cap already condemned this vendor earlier in the walk. Its other
-    // models draw on the same exhausted budget, so trying them buys a dead
-    // round trip and the identical error.
-    if (deadProviders.has(link.provider.id)) continue;
-
-    const key = env[link.provider.keyEnv]?.trim();
-    if (!key) {
-      failures.push({ link, message: `${linkId(link)}: no ${link.provider.keyEnv} in env` });
-      continue;
-    }
-
-    try {
-      const result = await callLink(link, options, key);
-      options.health?.recordSuccess();
-      return result;
-    } catch (error) {
-      const failure = error as LinkFailure;
-      failures.push({ link, message: failure.message });
-      options.onLinkFailure?.(link, failure);
-
-      if (failure.kind === "daily") deadProviders.add(link.provider.id);
-
-      // A REJECTED KEY is a verdict about the VENDOR, not the model.
-      //
-      // 401/403 says "not you". Every remaining link at this provider presents
-      // the identical credential, so walking them spends a request each to be
-      // told the same thing — and then reports "all 5 links failed", which
-      // reads as an outage at someone else's shop and sends the reader looking
-      // for one. The fact worth surfacing is that a key this app holds was
-      // refused.
-      //
-      // Crossing to the NEXT vendor still happens: that is a different key, and
-      // the whole reason the chain spans vendors.
-      //
-      // Deliberately narrow. A 404 is a retired id, a 5xx is a vendor being
-      // unwell, a capacity 429 is a busy minute — all three are answered by
-      // asking a different model, and widening this skip to cover them would
-      // quietly turn the chain back into the pin it replaced.
-      if (failure.status === 401 || failure.status === 403) {
-        deadProviders.add(link.provider.id);
-      }
-
-      // The caller cancelled — the request they were waiting on is gone. Walking
-      // the rest of the chain now would spend their daily budget on an answer
-      // nobody will read, and would report "every vendor failed" about vendors
-      // that were never asked.
-      if (options.signal?.aborted) break;
-
-      // Stepping down after a size 429 reaches a model with a smaller ceiling —
-      // strictly worse. Stop, and let the caller shorten the prompt.
-      if (failure.kind === "size") break;
-    }
-  }
-
-  const exhausted = new ChainExhaustedError(failures);
-  options.health?.recordFailure(exhausted);
-  throw exhausted;
+  return walkChain(options, (link, key) => callLink(link, options, key));
 }

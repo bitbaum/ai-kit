@@ -110,6 +110,16 @@ export {
 } from "./complete.js";
 
 export {
+  type StreamDelta,
+  type CompleteStreamOptions,
+  StreamInterrupted,
+  completeStream,
+  sseFrames,
+} from "./stream.js";
+
+export { walkChain } from "./walk.js";
+
+export {
   type HealthStatus,
   type Health,
   type HealthTrackerOptions,
