@@ -567,3 +567,9 @@ pnpm run verify  # lint + typecheck + build + test
 ```
 
 MIT.
+
+---
+
+Part of **[bitbaum](https://bitbaum.orangecat.ch)** — AI-native products on open
+infrastructure, built in Zürich. Every package here lists the apps that use it:
+**[which apps use ai-kit](https://bitbaum.orangecat.ch/packages/#ai-kit)**.
