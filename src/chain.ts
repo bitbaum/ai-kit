@@ -91,6 +91,23 @@ export type Provider = {
    * this module exists to refuse.
    */
   routed?: boolean;
+  /**
+   * Which of `models` accept an IMAGE as input. Absent = nobody has said.
+   *
+   * Three states, not two, and the third is the one that matters — the same
+   * shape as `ToolVerdict.unobserved` in `capability/`, for the same reason. A
+   * model listed here reads pictures. A model in `models` but NOT here is
+   * declared blind, and a picture must not be sent to it. A model in NEITHER
+   * list — an env override, a private deployment, an id a user brought — is
+   * UNKNOWN, and unknown is tried rather than refused: asking is how we learn,
+   * and a list that reads its own silence as "no" permanently refuses a
+   * capability it never tested. That is the precise bug OrangeCat's ADR-0008
+   * was written about (`TOOL_CAPABLE_PROVIDERS = ['groq', 'openrouter']`).
+   *
+   * Set it ONLY from evidence, and say which kind in a comment beside the id.
+   * `scripts/probe-vision.mjs` produces the strong kind.
+   */
+  visionModels?: string[];
 };
 
 export type Env = Record<string, string | undefined>;
@@ -203,6 +220,19 @@ export function freeChain(prefix = "AI"): Provider[] {
       // 50 is spent. That makes OpenRouter the LAST link rather than a middle
       // one, despite being the widest catalogue.
       models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "qwen/qwen3.6-27b"],
+      // NONE of them can read a picture, and this empty list is a statement,
+      // not an oversight — it is what stops a screenshot being sent to the
+      // four links that lead this chain.
+      //
+      // Evidence, live rather than assumed: loki pinned
+      // `meta-llama/llama-4-scout-17b-16e-instruct` for screenshot analysis,
+      // the id was DECOMMISSIONED, and re-probing on 2026-08-13 established
+      // that Groq then offered no vision model at all on this account
+      // (bitbaum/loki `src/config/vision-models.ts`, which kept an empty Groq
+      // seat for exactly that reason). gpt-oss and qwen3 are text models.
+      //
+      // Restore an id here the day Groq serves one and a probe proves it.
+      visionModels: [],
       // Deliberately NOT raised alongside the model count, and that is the
       // whole point of the split documented at the top of this file: requests
       // and TPM ration per MODEL, the daily TOKEN pool does not. Four links
@@ -260,6 +290,23 @@ export function freeChain(prefix = "AI"): Provider[] {
         "models/gemini-flash-lite-latest",
         "models/gemma-4-31b-it",
       ],
+      // All three, and this is the vendor that makes free vision possible at
+      // all: Gemini Flash and Gemma are multimodal families, and Google's free
+      // tier is per-PROJECT rather than org-wide, so it is not drained by
+      // whatever else on the box shares the Groq and OpenRouter keys.
+      //
+      // PROVENANCE: declared, not probed. Google publishes image input for
+      // these families and the OpenAI-compatible surface takes `image_url`
+      // parts — but nobody in this fleet has sent one through and watched it
+      // answer, which is the bar `models` above is held to. Declared is a
+      // legitimate prior (see `capability/types.ts`); it is not a measurement,
+      // and it is written down as such so the next reader does not inherit it
+      // as one. `pnpm run check:vision` settles it with a real image.
+      visionModels: [
+        "models/gemini-flash-latest",
+        "models/gemini-flash-lite-latest",
+        "models/gemma-4-31b-it",
+      ],
       // Google publishes no fixed free-tier table — limits are per PROJECT and
       // shown in AI Studio, and no rate-limit headers come back on a completion
       // either. So this is a deliberate under-estimate rather than a figure, per
@@ -290,6 +337,25 @@ export function freeChain(prefix = "AI"): Provider[] {
         "cohere/north-mini-code:free",
         "openrouter/free",
       ],
+      // One entry, and it is the strongest evidence in this file: loki probed
+      // `google/gemma-4-26b-a4b-it:free` LIVE on 2026-08-13 with a
+      // solid-colour test image and it answered "Red" correctly. A free model,
+      // already in this chain, that reads pictures — which is why heidi's
+      // "the free models cannot read pictures" was never a fact about free
+      // models, only about a chain nobody had taught to route.
+      //
+      // The four omissions are each deliberate:
+      //   nemotron-3-super / nemotron-3.5-lightning / cohere/north-mini-code
+      //     — text models.
+      //   openrouter/free — an AUTO-ROUTER across the free catalogue. It may
+      //     land on something that sees, and it may not, and which one is not
+      //     knowable before the call. Unreliable is not a capability: a
+      //     picture routed to a blind model comes back as a confident answer
+      //     about nothing, which is worse than a refusal.
+      //
+      // `google/gemma-4-31b-it:free` is NOT here because it is not in `models`
+      // above. It answered 429 on loki's probe day — unproven either way.
+      visionModels: ["google/gemma-4-26b-a4b-it:free"],
       // OpenRouter meters its free tier in REQUESTS per day, not tokens, and the
       // cap depends on the account's credit balance — so this is a translation,
       // not a published figure. Set at the low end on purpose.

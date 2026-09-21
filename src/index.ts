@@ -117,7 +117,27 @@ export {
   sseFrames,
 } from "./stream.js";
 
-export { walkChain, type WalkOptions } from "./walk.js";
+export { walkChain, walkLinks, type WalkOptions } from "./walk.js";
+
+/**
+ * Vision — which links can be sent a picture, and what to do when none can.
+ *
+ * `complete()` and `completeStream()` apply this themselves, so a caller that
+ * simply puts an `image_url` part in a message gets the routing for free and
+ * needs none of these names. They are exported for the callers that must
+ * DECIDE something: a UI that says "this model cannot see" before the user
+ * attaches anything, or a preflight whose whole job is the picture and which
+ * wants `visionProviders()` as its chain from the start.
+ */
+export {
+  type VisionVerdict,
+  modelSeesImages,
+  linkSeesImages,
+  seeingLinks,
+  visionProviders,
+  messagesCarryImages,
+  NoVisionLinkError,
+} from "./vision.js";
 export { transcribe, type TranscribeOptions, type TranscribeResult } from "./transcribe.js";
 
 export {

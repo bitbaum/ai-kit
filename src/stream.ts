@@ -35,6 +35,7 @@ import type { Link } from "./chain.js";
 import {
   LinkFailure,
   linkId,
+  sightedOptions,
   type ChatMessage,
   type CompleteOptions,
   type ToolCall,
@@ -175,7 +176,11 @@ export async function* completeStream(
   // before the first delta would make every 200 look like a success, including
   // the ones that die immediately — and by then the walk is over and fallback
   // is no longer honest.
-  const opened = await walkChain(options, async (link, key) => {
+  // The picture-carrying turn skips the links that cannot read one, exactly as
+  // `complete()` does — same helper, so the two paths cannot disagree about
+  // which model can see. Throws `NoVisionLinkError` before any request when the
+  // whole chain is blind.
+  const opened = await walkChain(sightedOptions(options), async (link, key) => {
     const controller = new AbortController();
     const onAbort = () => controller.abort();
     options.signal?.addEventListener("abort", onAbort, { once: true });

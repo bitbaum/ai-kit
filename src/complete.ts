@@ -61,7 +61,8 @@ import type { HealthTracker } from "./health.js";
 import { classifyRateLimit, retryAfterSeconds, type RateLimitKind } from "./limits.js";
 import { readQuota, readingFromRefusal, type QuotaReading } from "./meter.js";
 import { parseTextToolCalls, stripToolCallLines, toolNamesFrom } from "./tool-protocol.js";
-import { walkChain } from "./walk.js";
+import { walkLinks, walkChain, type WalkOptions } from "./walk.js";
+import { NoVisionLinkError, linkSeesImages, messagesCarryImages, seeingLinks } from "./vision.js";
 
 /**
  * A piece of a message, for the models that accept more than text.
@@ -520,5 +521,37 @@ async function callLink(
  * the last one.
  */
 export async function complete(options: CompleteOptions): Promise<CompleteResult> {
-  return walkChain(options, (link, key) => callLink(link, options, key));
+  return walkChain(sightedOptions(options), (link, key) => callLink(link, options, key));
+}
+
+/**
+ * The same options, with the blind links removed when the turn carries a
+ * picture.
+ *
+ * Shared by `complete()` and `completeStream()` on purpose. They already share
+ * `walkChain` so that "is this vendor dead" cannot have two answers; "can this
+ * model see" is the same kind of question and gets the same treatment. A
+ * streaming chat surface is exactly where a screenshot arrives.
+ *
+ * A plain-text turn — almost every turn — returns the caller's own options
+ * object untouched, so this costs one `typeof` per message and allocates
+ * nothing.
+ */
+export function sightedOptions<T extends WalkOptions & { messages: ChatMessage[] }>(options: T): T {
+  if (!messagesCarryImages(options.messages)) return options;
+
+  const chain = walkLinks(options);
+  const sighted = seeingLinks(chain);
+
+  // Nothing here can see. Say that, rather than walking a chain of models
+  // guaranteed to answer the prompt while ignoring the picture in it — which
+  // returns a fluent paragraph about an image nobody looked at, and is the one
+  // failure a reader cannot detect.
+  if (sighted.length === 0) {
+    throw new NoVisionLinkError(
+      chain.filter((l) => linkSeesImages(l) === "no").map((l) => linkId(l)),
+    );
+  }
+
+  return { ...options, chain: sighted };
 }
