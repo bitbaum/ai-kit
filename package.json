@@ -1,6 +1,6 @@
 {
   "name": "@bitbaum/ai-kit",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "license": "MIT",
   "author": "Mao Nakamoto",
   "homepage": "https://github.com/bitbaum/ai-kit#readme",
@@ -86,6 +86,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.js",
     "check:catalog": "pnpm run build && node scripts/check-catalog.mjs",
+    "check:vision": "pnpm run build && node scripts/probe-vision.mjs",
     "smoke": "pnpm run build && node scripts/smoke.mjs",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build && pnpm test",
     "prepare": "pnpm run build",

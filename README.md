@@ -431,6 +431,62 @@ key and observations must not leak across them.
 
 Storage stays yours — a table, a KV, a file. This owns the shape and the rules.
 
+### Can it SEE? — a picture goes only to a model that reads one
+
+`freeChain()` is ordered for text, so a screenshot sent through it meets four
+Groq links that cannot read it before reaching one that can. A blind model
+handed a picture does not fail usefully: it answers the words around the image,
+fluently, about nothing.
+
+So `complete()` and `completeStream()` route on it. Put an `image_url` part in
+a message and the blind links are skipped — no flag, no second chain, no call
+to make:
+
+```ts
+await complete({
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "what does this say?" },
+        { type: "image_url", image_url: { url: dataUrl } },
+      ],
+    },
+  ],
+});
+// Groq's four text models are skipped. Gemini Flash and
+// google/gemma-4-26b-a4b-it:free are tried, in meter order.
+```
+
+**Three verdicts, and the third is the one that matters.** `visionModels` on a
+provider names the ids that read images; an id in `models` but not there is
+**`"no"`**; an id in *neither* — an env override, a private deployment, a model
+a user brought — is **`"unknown"`**, and unknown is *tried*, never refused.
+Reading silence as a denial is how the strongest model a user can bring becomes
+the one your agent can do least with.
+
+When a turn carries a picture and every link is declared blind, you get
+`NoVisionLinkError` **before any request is made**, naming what it skipped —
+not a `ChainExhaustedError` that sends you hunting an outage that is not
+happening. The fix is a key, and the error says so.
+
+```ts
+import { visionProviders, modelSeesImages, NoVisionLinkError } from "@bitbaum/ai-kit";
+
+// A dedicated vision chain, for a preflight whose whole job is the picture.
+// Stricter than the per-request filter: only proven sight, never "unknown".
+const chain = usableChain(visionProviders(freeChain("APP")), process.env);
+
+// For a UI that must say "this model cannot see" before anything is attached.
+modelSeesImages(provider, model); // "yes" | "no" | "unknown"
+```
+
+Claims rot like pins do, so they are checkable: `pnpm run check:vision` sends a
+real image and asks what colour it is. One word, one right answer, and it
+treats **HTTP 200 with empty content as a failure** — a model that answers
+nothing is the shape that reads as a successful analysis of a picture nobody
+looked at.
+
 ---
 
 ## What it deliberately does not ship

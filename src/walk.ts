@@ -46,13 +46,32 @@ export interface WalkOptions {
  * what was actually tried — the failure that explains an outage is usually not
  * the last one.
  */
+/**
+ * The links this walk will actually try, in order, before any of them is
+ * called.
+ *
+ * Exported because a caller sometimes has to DECIDE something about the chain
+ * rather than merely walk it — `complete()` drops the links that cannot read
+ * an image. Resolving the same defaults twice, in two files, is how the
+ * routing quietly grows a second opinion; this is the one resolution.
+ *
+ * NOT `resolveChain` — that name is taken by `resolve.ts`, which answers a
+ * different question (what does the vendor's live CATALOGUE offer). Two
+ * functions called `resolveChain` in one package would be a coin flip at every
+ * import site.
+ */
+export function walkLinks(options: WalkOptions): Link[] {
+  const env = options.env ?? process.env;
+  const base = options.chain ?? usableChain(options.providers ?? freeChain(), env);
+  return chainFrom(options.model, base);
+}
+
 export async function walkChain<T>(
   options: WalkOptions,
   attempt: (link: Link, key: string) => Promise<T>,
 ): Promise<T> {
   const env = options.env ?? process.env;
-  const base = options.chain ?? usableChain(options.providers ?? freeChain(), env);
-  const chain = chainFrom(options.model, base);
+  const chain = walkLinks(options);
 
   const failures: ChainAttemptFailure[] = [];
   const deadProviders = new Set<string>();
