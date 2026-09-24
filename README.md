@@ -487,6 +487,38 @@ treats **HTTP 200 with empty content as a failure** — a model that answers
 nothing is the shape that reads as a successful analysis of a picture nobody
 looked at.
 
+### A reader's own key — `ai-kit/byok`, `ai-kit/seal`
+
+```ts
+import { BYOK_VENDORS, isByokConfig, byokChain } from "@bitbaum/ai-kit/byok";
+import { sealSecret, openSecret } from "@bitbaum/ai-kit/seal"; // server only
+
+if (!isByokConfig(body.byok)) return bad();          // vendor id from a closed list
+const { chain, env, extraHeaders } = byokChain(body.byok, { url, title });
+completeStream({ chain, env, extraHeaders, messages, tools });
+```
+
+A **closed list** of OpenAI-shaped vendors (OpenRouter, OpenAI, Anthropic,
+Google Gemini, Groq, Mistral, DeepSeek, xAI, Together, Cerebras): the host comes
+from here, never from the request, because the server sends a stranger's bearer
+token to it. Anthropic and Gemini go through the same `complete()` as everyone
+else — both serve the OpenAI shape — so a reader's key gets streaming and tool
+calls with no vendor SDK. A local model (Ollama) is deliberately absent: a
+server cannot reach the reader's `localhost`. `ai-kit/byok` is pure, so a
+settings UI can import the list; `ai-kit/seal` (AES-256-GCM, OrangeCat's
+scheme) is for storing a signed-in reader's key at rest.
+
+### Skip a link that already refused — `createLinkCooldown`
+
+```ts
+const cooldown = createLinkCooldown(); // once per process
+completeStream({ chain: cooldown.filter(chain), onLinkFailure: cooldown.record, ... });
+```
+
+A daily 429 cools the link until UTC midnight, a per-minute one for its
+`retry-after`; a size 429 cools nothing. If everything is cooling the whole
+chain is tried, so a stale memory is never the reason nothing answered.
+
 ---
 
 ## What it deliberately does not ship
