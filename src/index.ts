@@ -235,3 +235,13 @@ export {
 
 // Skip a link that already refused, until its refusal says it resets.
 export { type LinkCooldown, createLinkCooldown } from "./cooldown.js";
+
+// Readers first: background jobs spend from a capped, reserved slice of the day.
+export {
+  type ClassPolicy,
+  type ClassReason,
+  type ClassDecision,
+  BACKGROUND_POLICY,
+  classBudget,
+  estimateTokens,
+} from "./budget-class.js";

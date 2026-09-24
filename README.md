@@ -519,6 +519,20 @@ A daily 429 cools the link until UTC midnight, a per-minute one for its
 `retry-after`; a size 429 cools nothing. If everything is cooling the whole
 chain is tried, so a stale memory is never the reason nothing answered.
 
+### Readers first — `classBudget`
+
+```ts
+const d = classBudget({ dayCapacityTokens, spent: { interactive, background }, cls: "background",
+                        costTokens, policy: { background: BACKGROUND_POLICY } });
+if (!d.allowed) stop(d.reason); // "class-cap" | "reserved" | "no-capacity"
+```
+
+`fairShare` splits a day between users; this splits it between *kinds* of
+spender on the same keys. A class may cap its total (`maxShare`) and refuse to
+spend below a floor left for everyone else (`stopBelow`). The default
+`BACKGROUND_POLICY` is a quarter of the day at most, never the last half; a
+class with no policy (the reader asking now) is limited by capacity alone.
+
 ---
 
 ## What it deliberately does not ship
