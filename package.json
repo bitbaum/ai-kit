@@ -1,6 +1,6 @@
 {
   "name": "@bitbaum/ai-kit",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "license": "MIT",
   "author": "Mao Nakamoto",
   "homepage": "https://github.com/bitbaum/ai-kit#readme",
@@ -78,6 +78,14 @@
       "types": "./dist/grounding/index.d.ts",
       "require": "./dist-cjs/grounding/index.js",
       "default": "./dist/grounding/index.js"
+    },
+    "./byok": {
+      "types": "./dist/byok.d.ts",
+      "default": "./dist/byok.js"
+    },
+    "./seal": {
+      "types": "./dist/seal.d.ts",
+      "default": "./dist/seal.js"
     }
   },
   "scripts": {
