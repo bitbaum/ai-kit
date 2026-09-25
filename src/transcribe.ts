@@ -50,13 +50,42 @@ export interface TranscribeOptions extends WalkOptions {
   language?: string;
   /** Nudge for names and jargon the model will not otherwise spell. */
   prompt?: string;
+  /**
+   * Ask for word-level timings as well as the text.
+   *
+   * Opt-in because it changes the request (`verbose_json` plus
+   * `timestamp_granularities[]=word`) and makes the body several times larger,
+   * and dictation — the common caller — needs only the text. A caller measuring
+   * HOW something was said (speech rate, pauses between words, length of run)
+   * cannot do it without them: the text says which words, only the timings say
+   * when.
+   */
+  words?: boolean;
   /** How long ONE link may take before the next is tried. Default 30s. */
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
 
+/** One recognised word and when it was said, in seconds from the start. */
+export interface TimedWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
 export interface TranscribeResult {
   text: string;
+  /**
+   * Word timings, when `words: true` was asked for AND the vendor supplied them.
+   *
+   * ABSENT is not EMPTY, and the difference is the whole contract. `undefined`
+   * means "not measured" — timings were not requested, or this vendor ignored
+   * the granularity and returned text only. `[]` means "measured, and there
+   * were no words", which is what a silent recording truthfully is. A caller
+   * that read absence as zero words would report a fluent speaker as having
+   * said nothing at all.
+   */
+  words?: TimedWord[];
   /** `provider/model`, so a log says which vendor actually answered. */
   id: string;
   link: Link;
@@ -87,7 +116,12 @@ async function transcribeLink(
   form.set("model", link.model);
   if (options.language) form.set("language", options.language);
   if (options.prompt) form.set("prompt", options.prompt);
-  form.set("response_format", "json");
+  if (options.words) {
+    form.set("response_format", "verbose_json");
+    form.append("timestamp_granularities[]", "word");
+  } else {
+    form.set("response_format", "json");
+  }
 
   // Its own budget per link, for the same reason `complete()` has one: a vendor
   // that accepts the connection and never answers is the outage a fallback
@@ -162,7 +196,33 @@ async function transcribeLink(
   // window, genuinely transcribes to nothing — and demoting it would walk the
   // whole chain re-uploading the same audio to every vendor to be told the same
   // true thing, slowly and at the caller's expense.
-  return { text: transcript, id: linkId(link), link, raw: parsed };
+  // Missing timings do NOT fail the link. The text is still a good answer, and
+  // walking the chain to find a vendor that honours the granularity would
+  // re-upload the same audio to each of them for a nice-to-have. The caller
+  // sees `words: undefined` and says "not measured" instead.
+  const words = options.words ? timedWords(parsed) : undefined;
+  return { text: transcript, id: linkId(link), link, raw: parsed, ...(words ? { words } : {}) };
+}
+
+/**
+ * The vendor's `words` array, normalised, or undefined if it sent none.
+ *
+ * Entries with a non-finite time, an end before their start, or no text are
+ * dropped rather than trusted: one negative duration propagates into every
+ * rate computed from it as a number that looks measured.
+ */
+export function timedWords(body: unknown): TimedWord[] | undefined {
+  const list = (body as { words?: unknown })?.words;
+  if (!Array.isArray(list)) return undefined;
+  const out: TimedWord[] = [];
+  for (const entry of list) {
+    const w = entry as { word?: unknown; start?: unknown; end?: unknown };
+    if (typeof w?.word !== "string" || !w.word.trim()) continue;
+    if (typeof w.start !== "number" || typeof w.end !== "number") continue;
+    if (!Number.isFinite(w.start) || !Number.isFinite(w.end) || w.end < w.start) continue;
+    out.push({ word: w.word.trim(), start: w.start, end: w.end });
+  }
+  return out;
 }
 
 /**
