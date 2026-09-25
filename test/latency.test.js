@@ -116,3 +116,16 @@ test('reasoning "light" is sent only to links with a probed setting', async () =
   });
   assert.equal(bodies[0].reasoning_effort, "low");
 });
+
+test("a 404 (a model the vendor dropped) cools its link for an hour", () => {
+  let t = Date.UTC(2026, 8, 25, 0, 43, 0);
+  const cd = createLinkCooldown({ now: () => t });
+  const [a, b] = chain();
+  cd.record(b, new LinkFailure(b, "groq/qwen: 404 — model not found", { status: 404 }));
+  assert.deepEqual(
+    cd.filter([a, b]).map((l) => l.model),
+    ["openai/gpt-oss-120b"],
+  );
+  t += 61 * 60_000;
+  assert.equal(cd.filter([a, b]).length, 2);
+});
