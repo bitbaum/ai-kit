@@ -31,6 +31,7 @@
  * producing tokens", and a 200 that then dies is exactly the outage this
  * package already refuses to report as success elsewhere.
  */
+import { reasoningBody } from "./reasoning.js";
 import type { Link } from "./chain.js";
 import {
   LinkFailure,
@@ -209,6 +210,7 @@ export async function* completeStream(
           ...(options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
           ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
           ...(options.tools === undefined ? {} : { tools: options.tools }),
+          ...reasoningBody(link, options.reasoning),
           ...options.extraBody,
         }),
         signal: controller.signal,
