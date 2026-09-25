@@ -323,3 +323,57 @@ test("health records a success only once the turn actually completes", async () 
   );
   assert.deepEqual(seen, ["ok", "ok"], "walk success plus turn success");
 });
+
+// ------------------------------------------------ first-token deadline --
+
+/** A body that sends nothing until the request is aborted — a link thinking silently, or hung. */
+function silentBody(signal) {
+  return new ReadableStream({
+    start(c) {
+      signal.addEventListener("abort", () => c.error(new Error("aborted")), { once: true });
+    },
+  });
+}
+
+test("a link with no first token by firstTokenMs is left for the next one", async () => {
+  const started = Date.now();
+  const deltas = await collect(
+    completeStream({
+      messages: [{ role: "user", content: "hi" }],
+      chain: [link("groq"), link("openrouter")],
+      env,
+      firstTokenMs: 50,
+      timeoutMs: 10_000,
+      fetchImpl: async (url, init) =>
+        String(url).includes("groq")
+          ? { ok: true, status: 200, headers: new Headers(), body: silentBody(init.signal) }
+          : okStream([chunk("from the next link")]),
+    }),
+  );
+  assert.ok(Date.now() - started < 2_000, "did not wait for the whole-stream timeout");
+  const end = deltas.at(-1);
+  assert.equal(end.text, "from the next link");
+});
+
+test("once the first token is out, a slow stream is not cut by firstTokenMs", async () => {
+  const enc = new TextEncoder();
+  let i = 0;
+  const slices = [chunk("one "), chunk("two")];
+  const slow = new ReadableStream({
+    async pull(c) {
+      if (i >= slices.length) return c.close();
+      if (i > 0) await new Promise((r) => setTimeout(r, 120));
+      c.enqueue(enc.encode(slices[i++]));
+    },
+  });
+  const deltas = await collect(
+    completeStream({
+      messages: [{ role: "user", content: "hi" }],
+      chain: [link("groq")],
+      env,
+      firstTokenMs: 50,
+      fetchImpl: async () => ({ ok: true, status: 200, headers: new Headers(), body: slow }),
+    }),
+  );
+  assert.equal(deltas.at(-1).text, "one two");
+});
