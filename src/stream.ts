@@ -43,7 +43,7 @@ import {
 } from "./complete.js";
 import { classifyRateLimit, retryAfterSeconds } from "./limits.js";
 import { readQuota, readingFromRefusal, type QuotaReading } from "./meter.js";
-import { walkChain } from "./walk.js";
+import { walkChain, walkLinks } from "./walk.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -93,6 +93,7 @@ export interface CompleteStreamOptions extends CompleteOptions {
    * hung) is otherwise waited on for the full `timeoutMs` before the chain
    * moves. Measured on substrata's Ask 2026-09-25: one question spent ~38 s
    * behind an OpenRouter link that never produced a token. Unset = no deadline.
+   * Never applied to the chain's last link: there is nowhere to walk on to.
    */
   firstTokenMs?: number;
 }
@@ -190,14 +191,18 @@ export async function* completeStream(
   // `complete()` does — same helper, so the two paths cannot disagree about
   // which model can see. Throws `NoVisionLinkError` before any request when the
   // whole chain is blind.
-  const opened = await walkChain(sightedOptions(options), async (link, key) => {
+  const walk = sightedOptions(options);
+  // The deadline is for walking ON; the last link has nowhere to walk to, and
+  // a slow answer beats none.
+  const lastLink = walkLinks(walk).at(-1);
+  const opened = await walkChain(walk, async (link, key) => {
     const controller = new AbortController();
     const onAbort = () => controller.abort();
     options.signal?.addEventListener("abort", onAbort, { once: true });
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     let late = false;
     const firstTimer =
-      options.firstTokenMs === undefined
+      options.firstTokenMs === undefined || (lastLink && linkId(lastLink) === linkId(link))
         ? undefined
         : setTimeout(() => {
             late = true;
