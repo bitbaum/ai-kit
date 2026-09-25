@@ -58,6 +58,13 @@ export type ModelRecord = {
    * it is worth surfacing even though most models omit it.
    */
   expiresOn: string | null;
+  /**
+   * When the vendor published the model, as epoch milliseconds, or null when it
+   * does not say. OpenAI-shaped lists give `created` in SECONDS; Anthropic's
+   * native list gives `created_at` as ISO. Used to prefer the newest model in a
+   * tier without this package ever naming one (see suggestByokModel).
+   */
+  created: number | null;
 };
 
 type RawModel = Record<string, unknown>;
@@ -100,7 +107,20 @@ function normalise(m: RawModel): ModelRecord | null {
     tools: declaresTools(m),
     contextLength: typeof m.context_length === "number" ? m.context_length : null,
     expiresOn: typeof expires === "string" && expires.trim() ? expires.trim() : null,
+    created: publishedAt(m),
   };
+}
+
+function publishedAt(m: RawModel): number | null {
+  if (typeof m.created === "number" && Number.isFinite(m.created) && m.created > 0) {
+    // Seconds in every OpenAI-shaped list; guard against a vendor sending ms.
+    return m.created < 1e12 ? m.created * 1000 : m.created;
+  }
+  if (typeof m.created_at === "string") {
+    const t = Date.parse(m.created_at);
+    return Number.isFinite(t) ? t : null;
+  }
+  return null;
 }
 
 export type FetchCatalogOptions = {
@@ -126,21 +146,67 @@ export async function fetchCatalog(
   opts: FetchCatalogOptions = {},
 ): Promise<ModelRecord[] | null> {
   if (!key?.trim()) return null;
+  const read = await readCatalog(
+    `${baseUrl.replace(/\/$/, "")}/models`,
+    { Authorization: `Bearer ${key.trim()}` },
+    opts,
+  );
+  return read.records && read.records.length > 0 ? read.records : null;
+}
+
+/** What one catalogue GET found, including why it failed. */
+export type CatalogRead = {
+  /** HTTP status, or null when the request never completed. */
+  status: number | null;
+  /** Parsed records, or null when the body was unreadable or not a list. */
+  records: ModelRecord[] | null;
+  /** The vendor's own error message, when it sent one. Never a key. */
+  vendorMessage: string | null;
+};
+
+/**
+ * The one GET behind `fetchCatalog`, keeping what `fetchCatalog` deliberately
+ * collapses: the status and the vendor's own words. A person pasting a key
+ * needs "OpenAI says: Incorrect API key provided", not "no models".
+ */
+export async function readCatalog(
+  url: string,
+  headers: Record<string, string>,
+  opts: FetchCatalogOptions = {},
+): Promise<CatalogRead> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 20_000;
+  let res: Response;
   try {
-    const res = await fetchImpl(`${baseUrl.replace(/\/$/, "")}/models`, {
-      headers: { Authorization: `Bearer ${key.trim()}` },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { data?: unknown };
-    if (!Array.isArray(body?.data)) return null;
-    const records = body.data
-      .map((m) => normalise((m ?? {}) as RawModel))
-      .filter((m): m is ModelRecord => m !== null);
-    return records.length > 0 ? records : null;
+    res = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   } catch {
-    return null;
+    return { status: null, records: null, vendorMessage: null };
   }
+  // An unparseable body is not an error here: the status still says what happened.
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) return { status: res.status, records: null, vendorMessage: vendorMessageOf(body) };
+  // `{ data: [...] }` almost everywhere; a bare array at Together.
+  const data = Array.isArray(body) ? body : (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(data)) return { status: res.status, records: null, vendorMessage: null };
+  const records = data
+    .map((m) => normalise((m ?? {}) as RawModel))
+    .filter((m): m is ModelRecord => m !== null);
+  return { status: res.status, records, vendorMessage: null };
+}
+
+/** The human sentence out of the error bodies vendors actually send. */
+function vendorMessageOf(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const err = b.error;
+  const candidates = [
+    err && typeof err === "object" ? (err as Record<string, unknown>).message : undefined,
+    typeof err === "string" ? err : undefined,
+    b.message,
+    b.detail,
+  ];
+  const text = candidates.find((c): c is string => typeof c === "string" && c.trim().length > 0);
+  // Vendors echo a masked key back ("sk-fakef***fake"); keep the sentence,
+  // cap the length, and never let a body smuggle more than one line.
+  return text ? text.replace(/\s+/g, " ").trim().slice(0, 240) : null;
 }

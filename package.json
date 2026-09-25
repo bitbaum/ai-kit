@@ -1,6 +1,6 @@
 {
   "name": "@bitbaum/ai-kit",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "license": "MIT",
   "author": "Mao Nakamoto",
   "homepage": "https://github.com/bitbaum/ai-kit#readme",
@@ -86,6 +86,10 @@
     "./seal": {
       "types": "./dist/seal.d.ts",
       "default": "./dist/seal.js"
+    },
+    "./byok-probe": {
+      "types": "./dist/byok-probe.d.ts",
+      "default": "./dist/byok-probe.js"
     }
   },
   "scripts": {
