@@ -222,7 +222,11 @@ export function freeChain(prefix = "AI"): Provider[] {
       // every other pool worth draining should be drained before one of those
       // 50 is spent. That makes OpenRouter the LAST link rather than a middle
       // one, despite being the widest catalogue.
-      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "qwen/qwen3.6-27b"],
+      //
+      // 2026-09-25: `qwen/qwen3.6-27b` left Groq's catalogue and 404'd on every
+      // turn that reached it (seen in substrata's Ask timing log); removed. The
+      // catalogue that day: gpt-oss-120b, gpt-oss-20b, qwen3.8-27b.
+      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"],
       // NONE of them can read a picture, and this empty list is a statement,
       // not an oversight — it is what stops a screenshot being sent to the
       // four links that lead this chain.

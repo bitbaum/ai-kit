@@ -47,10 +47,18 @@ export function createLinkCooldown(
   const until = new Map<string, number>();
   return {
     record(link, error) {
+      if (!(error instanceof LinkFailure)) return;
+      const t = now();
+      // A 404 from /chat/completions is a model the vendor no longer serves.
+      // Rot is not fixed in minutes, and until the id leaves the chain every
+      // turn would pay the round trip; an hour keeps a mistaken 404 cheap.
+      if (error.status === 404) {
+        until.set(linkId(link), t + 60 * minuteMs);
+        return;
+      }
       // A "size" 429 is about THIS request's length, not the link: a shorter
       // one may pass a moment later, so it cools nothing.
-      if (!(error instanceof LinkFailure) || error.status !== 429 || error.kind === "size") return;
-      const t = now();
+      if (error.status !== 429 || error.kind === "size") return;
       const named = error.retryAfter && error.retryAfter > 0 ? error.retryAfter * 1000 : null;
       const back =
         named !== null ? t + named : error.kind === "daily" ? nextUtcReset(t) : t + minuteMs;
