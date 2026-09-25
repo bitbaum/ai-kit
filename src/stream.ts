@@ -86,6 +86,15 @@ export class StreamInterrupted extends Error {
 
 export interface CompleteStreamOptions extends CompleteOptions {
   messages: ChatMessage[];
+  /**
+   * Give up on a link that has streamed no visible token after this many ms,
+   * and walk on. Separate from `timeoutMs`, which bounds the WHOLE stream and
+   * so has to allow for a long answer: a link that is thinking silently (or
+   * hung) is otherwise waited on for the full `timeoutMs` before the chain
+   * moves. Measured on substrata's Ask 2026-09-25: one question spent ~38 s
+   * behind an OpenRouter link that never produced a token. Unset = no deadline.
+   */
+  firstTokenMs?: number;
 }
 
 function excerpt(body: string, limit = 300): string {
@@ -186,10 +195,21 @@ export async function* completeStream(
     const onAbort = () => controller.abort();
     options.signal?.addEventListener("abort", onAbort, { once: true });
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    let late = false;
+    const firstTimer =
+      options.firstTokenMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            late = true;
+            controller.abort();
+          }, options.firstTokenMs);
     const cleanup = () => {
       clearTimeout(timer);
+      clearTimeout(firstTimer);
       options.signal?.removeEventListener("abort", onAbort);
     };
+    const why = (error: unknown) =>
+      late ? `no first token within ${options.firstTokenMs} ms` : (error as Error).message;
 
     let res: Response;
     try {
@@ -217,7 +237,7 @@ export async function* completeStream(
       });
     } catch (error) {
       cleanup();
-      throw new LinkFailure(link, `${linkId(link)}: ${(error as Error).message}`);
+      throw new LinkFailure(link, `${linkId(link)}: ${why(error)}`);
     }
 
     report(readQuota(res.headers, link));
@@ -272,8 +292,10 @@ export async function* completeStream(
     } catch (error) {
       cleanup();
       reader.releaseLock();
-      throw new LinkFailure(link, `${linkId(link)}: ${(error as Error).message}`);
+      throw new LinkFailure(link, `${linkId(link)}: ${why(error)}`);
     }
+    // The first token arrived: from here only `timeoutMs` bounds the stream.
+    clearTimeout(firstTimer);
 
     if (queued.length === 0) {
       cleanup();
