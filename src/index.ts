@@ -138,7 +138,13 @@ export {
   messagesCarryImages,
   NoVisionLinkError,
 } from "./vision.js";
-export { transcribe, type TranscribeOptions, type TranscribeResult } from "./transcribe.js";
+export {
+  transcribe,
+  timedWords,
+  type TimedWord,
+  type TranscribeOptions,
+  type TranscribeResult,
+} from "./transcribe.js";
 
 export {
   type HealthStatus,

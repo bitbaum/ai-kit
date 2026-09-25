@@ -226,3 +226,102 @@ test("every failure is reported, not only the last", async () => {
   assert.ok(error instanceof ChainExhaustedError);
   assert.equal(error.failures.length, 3);
 });
+
+// ── Word timings ─────────────────────────────────────────────────────────────
+//
+// Opt-in, because dictation needs only the text; a caller measuring HOW
+// something was said needs to know when each word was.
+
+test("word timings are requested only when asked for", async () => {
+  const forms = [];
+  const capture = async (_url, init) => {
+    forms.push(init.body);
+    return ok("x");
+  };
+  await transcribe({ audio: audio(), chain: chain(), env: ENV, fetchImpl: capture });
+  await transcribe({ audio: audio(), chain: chain(), env: ENV, words: true, fetchImpl: capture });
+
+  assert.equal(forms[0].get("response_format"), "json");
+  assert.deepEqual(forms[0].getAll("timestamp_granularities[]"), []);
+  assert.equal(forms[1].get("response_format"), "verbose_json");
+  assert.deepEqual(forms[1].getAll("timestamp_granularities[]"), ["word"]);
+});
+
+test("timings come back normalised, and impossible ones are dropped", async () => {
+  const body = {
+    text: "Guten Tag ich",
+    words: [
+      { word: " Guten", start: 0.1, end: 0.4 },
+      { word: "Tag", start: 0.45, end: 0.7 },
+      { word: "broken", start: 1.2, end: 0.9 },
+      { word: "", start: 1, end: 1.1 },
+      { word: "nan", start: Number.NaN, end: 1 },
+      { word: "ich", start: 1.3, end: 1.5 },
+    ],
+  };
+  const result = await transcribe({
+    audio: audio(),
+    chain: chain(),
+    env: ENV,
+    words: true,
+    fetchImpl: async () => new Response(JSON.stringify(body), { status: 200 }),
+  });
+  assert.deepEqual(result.words, [
+    { word: "Guten", start: 0.1, end: 0.4 },
+    { word: "Tag", start: 0.45, end: 0.7 },
+    { word: "ich", start: 1.3, end: 1.5 },
+  ]);
+});
+
+test("ABSENT IS NOT EMPTY: a vendor that ignores the granularity gives no words, not []", async () => {
+  // Reading absence as zero words would report a fluent speaker as silent.
+  const result = await transcribe({
+    audio: audio(),
+    chain: chain(),
+    env: ENV,
+    words: true,
+    fetchImpl: async () => ok("the text is still fine"),
+  });
+  assert.equal(result.text, "the text is still fine");
+  assert.equal("words" in result, false);
+});
+
+test("missing timings do not fail the link or walk the chain", async () => {
+  // Re-uploading the audio to every vendor for a nice-to-have is the wrong trade.
+  let calls = 0;
+  await transcribe({
+    audio: audio(),
+    chain: chain(),
+    env: ENV,
+    words: true,
+    fetchImpl: async () => {
+      calls++;
+      return ok("no timings here");
+    },
+  });
+  assert.equal(calls, 1);
+});
+
+test("a silent recording with timings requested is [] — measured, and nothing said", async () => {
+  const result = await transcribe({
+    audio: audio(),
+    chain: chain(),
+    env: ENV,
+    words: true,
+    fetchImpl: async () => new Response(JSON.stringify({ text: "", words: [] }), { status: 200 }),
+  });
+  assert.deepEqual(result.words, []);
+});
+
+test("without the flag, timings are never returned even if the vendor sends them", async () => {
+  const result = await transcribe({
+    audio: audio(),
+    chain: chain(),
+    env: ENV,
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ text: "a", words: [{ word: "a", start: 0, end: 1 }] }), {
+        status: 200,
+      }),
+  });
+  assert.equal("words" in result, false);
+});
