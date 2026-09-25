@@ -65,6 +65,31 @@ export interface ByokVendor {
   routed?: boolean;
   /** Attribution headers some vendors read; free to send. */
   wantsAttribution?: boolean;
+  /**
+   * How to check a key and list the models it can use (see byok-probe.ts).
+   * Absent = the common case: GET `${baseUrl}/models` with a Bearer key.
+   * Every entry below was checked against the live endpoint with a fake key
+   * (2026-09-25) — which proves how each REJECTS, not that it accepts.
+   */
+  probe?: ByokProbeSpec;
+}
+
+export interface ByokProbeSpec {
+  /**
+   * A path under `baseUrl` that answers for THE KEY, when `/models` does not.
+   * OpenRouter's `/models` is a public catalogue — it returns 200 to a fake
+   * key — so checking a key against it accepts anything.
+   */
+  checkPath?: string;
+  /** Header the models endpoint authenticates with. Default "bearer". */
+  auth?: "bearer" | "x-api-key";
+  /** Headers the endpoint requires besides the key. */
+  headers?: Readonly<Record<string, string>>;
+  /**
+   * A router's lab namespaces to suggest first (see `rankByokModels`). Labs,
+   * never model ids: labs change on the scale of years, model ids monthly.
+   */
+  preferNamespaces?: readonly string[];
 }
 
 /**
@@ -81,6 +106,10 @@ export const BYOK_VENDORS: readonly ByokVendor[] = [
     modelExample: "anthropic/claude-sonnet-5",
     routed: true,
     wantsAttribution: true,
+    probe: {
+      checkPath: "/key",
+      preferNamespaces: ["anthropic/", "openai/", "google/", "x-ai/"],
+    },
   },
   {
     id: "openai",
@@ -97,6 +126,9 @@ export const BYOK_VENDORS: readonly ByokVendor[] = [
     keyUrl: "https://console.anthropic.com/settings/keys",
     keyHint: "sk-ant-…",
     modelExample: "claude-opus-5",
+    // Its native /v1/models is the documented way to list models, and it
+    // authenticates with x-api-key + a version header — not Bearer.
+    probe: { auth: "x-api-key", headers: { "anthropic-version": "2023-06-01" } },
   },
   {
     id: "google",

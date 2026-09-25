@@ -508,6 +508,34 @@ server cannot reach the reader's `localhost`. `ai-kit/byok` is pure, so a
 settings UI can import the list; `ai-kit/seal` (AES-256-GCM, OrangeCat's
 scheme) is for storing a signed-in reader's key at rest.
 
+#### "Does this key work, and what can it use?" — `ai-kit/byok-probe`
+
+```ts
+import { probeByokKey } from "@bitbaum/ai-kit/byok-probe"; // server only
+
+const probe = await probeByokKey("anthropic", pastedKey);
+// { ok: true, message: "Your Anthropic key works — 12 models available.",
+//   models: ["claude-opus-5.5", …], suggested: "claude-opus-5.5" }
+```
+
+The moment a reader pastes a key, a settings screen can say whether it works
+**and** offer the models it can actually reach, with the best one preselected —
+instead of a text box and a failure in the chat later. Checked against each
+vendor the way that vendor checks keys: OpenRouter's `/models` is a public
+catalogue that answers 200 to a fake key, so its key is checked at `/key`;
+Anthropic's list wants `x-api-key`; Google and xAI reject a bad key with 400,
+not 401. On failure the reader gets the vendor's own words (with the key
+masked if the vendor echoed it), and an unreachable vendor is "couldn't check",
+never "your key is wrong".
+
+The suggestion names no model — ids change monthly. It is the newest model in
+the strongest tier the key can use, read from the name (`opus`/`pro`/`large`
+above, `mini`/`lite`/`haiku`/small parameter counts below, speed variants never
+on top) and dated by the vendor's catalogue, or by the version in the name when
+the vendor gives no dates (a `-latest` alias counts as newest). For a router,
+frontier labs' namespaces rank first. `rankByokModels` / `suggestByokModel` are
+pure, for re-ranking a list a UI already holds.
+
 ### Skip a link that already refused — `createLinkCooldown`
 
 ```ts
