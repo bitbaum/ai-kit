@@ -5,9 +5,17 @@
  * first four have spent their day, every question pays four round trips of
  * 429 before reaching one that answers — measured on substrata 2026-09-24:
  * several seconds per turn, and a tool loop takes several turns. The refusal
- * already says how long it lasts (a daily pool resets at UTC midnight; a
- * per-minute window names its wait), so remember it and skip the link until
+ * already says how long it lasts, so remember it and skip the link until
  * then.
+ *
+ * The refusal's OWN wait wins, daily ones included. Groq's "per day" pools are
+ * ROLLING 24-hour windows, not UTC days, and the body names when this one
+ * frees ("try again in 3m12s"). Measured 2026-09-25: gpt-oss-20b refused
+ * "tokens per day (TPD)" at 00:14 UTC and served normally at 00:17 — while a
+ * cooldown to the next UTC midnight kept that link (and gpt-oss-120b, the
+ * fastest in the chain) out of substrata's Ask for most of a day, sending every
+ * question to a 10-second OpenRouter link. Midnight is only the fallback for a
+ * daily refusal that names no wait.
  *
  * Process-local on purpose: it is a latency cache, not a quota ledger. A
  * restart forgets it, and the worst case is one wasted request per link.
@@ -43,10 +51,9 @@ export function createLinkCooldown(
       // one may pass a moment later, so it cools nothing.
       if (!(error instanceof LinkFailure) || error.status !== 429 || error.kind === "size") return;
       const t = now();
+      const named = error.retryAfter && error.retryAfter > 0 ? error.retryAfter * 1000 : null;
       const back =
-        error.kind === "daily"
-          ? nextUtcReset(t)
-          : t + (error.retryAfter && error.retryAfter > 0 ? error.retryAfter * 1000 : minuteMs);
+        named !== null ? t + named : error.kind === "daily" ? nextUtcReset(t) : t + minuteMs;
       until.set(linkId(link), back);
     },
     filter(chain) {

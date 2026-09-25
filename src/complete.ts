@@ -56,6 +56,7 @@
  * former. That misdiagnosis cost an hour once; it is not free to repeat.
  */
 
+import { reasoningBody } from "./reasoning.js";
 import type { Env, Link, Provider } from "./chain.js";
 import type { HealthTracker } from "./health.js";
 import { classifyRateLimit, retryAfterSeconds, type RateLimitKind } from "./limits.js";
@@ -188,6 +189,13 @@ export interface CompleteOptions {
    * otherwise execute each call twice.
    */
   toolProtocol?: "both" | "native";
+  /**
+   * `"light"` asks each link that can for its shortest hidden reasoning, per
+   * vendor (see `reasoningBody`). For a reader waiting on the first word: a
+   * reasoning model streams nothing visible while it thinks. Links with no
+   * probed setting are sent nothing extra.
+   */
+  reasoning?: "light";
   /** Extra body fields for a vendor-specific parameter. Merged last, so it can override. */
   extraBody?: Record<string, unknown>;
   /**
@@ -387,6 +395,7 @@ async function callLink(
     ...(options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(options.tools === undefined ? {} : { tools: options.tools }),
+    ...reasoningBody(link, options.reasoning),
     ...options.extraBody,
   };
 

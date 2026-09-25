@@ -161,6 +161,7 @@ export {
   type RateLimitKind,
   classifyRateLimit,
   retryAfterSeconds,
+  namesModel,
   humanizeWait,
   rateLimitMessage,
 } from "./limits.js";
@@ -235,6 +236,7 @@ export {
 
 // Skip a link that already refused, until its refusal says it resets.
 export { type LinkCooldown, createLinkCooldown } from "./cooldown.js";
+export { reasoningBody } from "./reasoning.js";
 
 // Readers first: background jobs spend from a capped, reserved slice of the day.
 export {

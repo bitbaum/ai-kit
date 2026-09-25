@@ -23,10 +23,13 @@
  *     openai/gpt-oss-120b   999 / 1000
  *     qwen/qwen3.8-27b      999 / 1000
  *
- * Separate counters, and separate 8000-token windows. Only the tokens-per-DAY
- * figure is org-wide. So a second model at the same vendor IS a real fallback
- * while you are request- or TPM-limited — the common case — and stops being one
- * once the org-wide TPD is spent. Worth knowing precisely, because the vendor
+ * Separate counters, and separate 8000-token windows. So a second model at the
+ * same vendor IS a real fallback while you are request- or TPM-limited — the
+ * common case. The tokens-per-DAY pool was assumed org-wide; re-measured
+ * 2026-09-25 it is per model too (gpt-oss-20b refused "for model
+ * `openai/gpt-oss-20b` … TPD" while gpt-oss-120b served on the same key), and
+ * a rolling 24 hours rather than a UTC day. `walkChain` therefore condemns the
+ * vendor only for a daily refusal that names no model. Worth knowing precisely, because the vendor
  * after Groq is often OpenRouter's free tier at 50 requests/day.
  *
  * The general rule stands: check the vendor's own headers rather than assuming

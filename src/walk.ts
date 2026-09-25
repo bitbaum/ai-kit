@@ -10,6 +10,7 @@
 import { type Env, type Link, type Provider, chainFrom, freeChain, usableChain } from "./chain.js";
 import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
 import { LinkFailure, linkId } from "./complete.js";
+import { namesModel } from "./limits.js";
 import type { HealthTracker } from "./health.js";
 
 /**
@@ -102,7 +103,12 @@ export async function walkChain<T>(
       failures.push({ link, message: failure.message });
       options.onLinkFailure?.(link, failure);
 
-      if (failure.kind === "daily") deadProviders.add(link.provider.id);
+      // …unless the refusal names THIS model. Groq meters its day per model:
+      // measured 2026-09-25, gpt-oss-20b refused "for model `openai/gpt-oss-20b`
+      // … tokens per day" while gpt-oss-120b on the same key served in the same
+      // minute. A refusal scoped to one model condemns that link, not the vendor.
+      if (failure.kind === "daily" && !namesModel(failure.message, link.model))
+        deadProviders.add(link.provider.id);
 
       // A REJECTED KEY is a verdict about the VENDOR, not the model.
       //

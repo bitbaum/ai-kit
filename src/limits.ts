@@ -135,3 +135,14 @@ export function rateLimitMessage(raw: string): string {
       return `the model provider is rate-limited${wait ? ` (retry in ${wait})` : " — try again shortly"}`;
   }
 }
+
+/**
+ * Does a refusal scope itself to one model? Groq's say "for model `<id>`"; an
+ * org-wide refusal names none. Only a backticked or quoted id counts, so a
+ * model id that merely appears in a prose sentence does not narrow the verdict.
+ */
+export function namesModel(body: string, model: string): boolean {
+  return (
+    body.includes(`\`${model}\``) || body.includes(`"${model}"`) || body.includes(`'${model}'`)
+  );
+}
