@@ -369,11 +369,35 @@ test("once the first token is out, a slow stream is not cut by firstTokenMs", as
   const deltas = await collect(
     completeStream({
       messages: [{ role: "user", content: "hi" }],
-      chain: [link("groq")],
+      chain: [link("groq"), link("openrouter")],
       env,
       firstTokenMs: 50,
-      fetchImpl: async () => ({ ok: true, status: 200, headers: new Headers(), body: slow }),
+      fetchImpl: async (url) =>
+        String(url).includes("groq")
+          ? { ok: true, status: 200, headers: new Headers(), body: slow }
+          : okStream([chunk("wrong link")]),
     }),
   );
   assert.equal(deltas.at(-1).text, "one two");
+});
+
+test("the last link is never cut by firstTokenMs — a slow answer beats none", async () => {
+  const enc = new TextEncoder();
+  const late = new ReadableStream({
+    async start(c) {
+      await new Promise((r) => setTimeout(r, 120));
+      c.enqueue(enc.encode(chunk("late but here")));
+      c.close();
+    },
+  });
+  const deltas = await collect(
+    completeStream({
+      messages: [{ role: "user", content: "hi" }],
+      chain: [link("groq")],
+      env,
+      firstTokenMs: 50,
+      fetchImpl: async () => ({ ok: true, status: 200, headers: new Headers(), body: late }),
+    }),
+  );
+  assert.equal(deltas.at(-1).text, "late but here");
 });
