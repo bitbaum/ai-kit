@@ -7,7 +7,15 @@
  * gets it wrong. The rules here are not new; they were extracted from
  * `complete()` unchanged, and its test suite is what proves they survived.
  */
-import { type Env, type Link, type Provider, chainFrom, freeChain, usableChain } from "./chain.js";
+import {
+  type Env,
+  type Link,
+  type Provider,
+  chainFrom,
+  freeChain,
+  healthFor,
+  usableChain,
+} from "./chain.js";
 import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
 import { LinkFailure, linkId } from "./complete.js";
 import { namesModel } from "./limits.js";
@@ -91,7 +99,7 @@ export async function walkChain<T>(
 
     try {
       const result = await attempt(link, key);
-      options.health?.recordSuccess();
+      (link.provider.byok ? undefined : options.health)?.recordSuccess();
       return result;
     } catch (error) {
       const failure = error as LinkFailure;
@@ -135,6 +143,6 @@ export async function walkChain<T>(
   }
 
   const exhausted = new ChainExhaustedError(failures);
-  options.health?.recordFailure(exhausted);
+  healthFor(chain, options.health)?.recordFailure(exhausted);
   throw exhausted;
 }

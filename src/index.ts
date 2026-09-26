@@ -62,6 +62,8 @@ export {
   modelCostAt,
   paidModelsIn,
   dayCapacityTokens,
+  isOwnKeyLink,
+  healthFor,
   usableChain,
   chainFrom,
 } from "./chain.js";

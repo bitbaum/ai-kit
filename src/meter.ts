@@ -67,6 +67,12 @@ export interface QuotaReading {
   source: string;
   /** Epoch ms. A reading is evidence about a moment, not a standing fact. */
   observedAt: number;
+  /**
+   * The reading is about a READER'S OWN key (`Provider.byok`), not the
+   * deployment's — a store of the site's quota must skip it, or one reader's
+   * nearly-empty personal account reads as the site running dry.
+   */
+  byok?: true;
 }
 
 /** Anything header-shaped. Keeps this module free of a DOM/undici dependency. */
@@ -206,6 +212,7 @@ export function readQuota(headers: HeaderBag, link: Link, now = Date.now()): Quo
 
     readings.push({
       provider: link.provider.id,
+      ...(link.provider.byok ? { byok: true as const } : {}),
       model: link.model,
       scope: entry.scope,
       window,
@@ -237,6 +244,7 @@ export function readingFromRefusal(
 ): QuotaReading {
   return {
     provider: link.provider.id,
+    ...(link.provider.byok ? { byok: true as const } : {}),
     model: link.model,
     scope,
     window: windowFor(link.provider.id, scope),
@@ -298,6 +306,7 @@ export function readingFromRefusalBody(
 
   return {
     provider: link.provider.id,
+    ...(link.provider.byok ? { byok: true as const } : {}),
     model: link.model,
     scope,
     // Straight from the vendor's own sentence, so unlike a header name this

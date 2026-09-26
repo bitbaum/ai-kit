@@ -251,9 +251,12 @@ export function byokChain(
     baseUrl: vendor.baseUrl,
     keyEnv: KEY_ENV,
     models: [config.model],
-    // Required by the type, meaningless here: a reader's own key is metered by
-    // their own vendor account, not by any fair-share in this process.
-    dailyTokens: Number.POSITIVE_INFINITY,
+    // A reader's own key is metered by their own vendor account, not by any
+    // fair-share here. `byok` is what the bookkeeping checks; `dailyTokens` is
+    // 0, not Infinity, so a caller that sums it anyway adds nothing (Infinity
+    // made a site's whole budget read as unlimited).
+    byok: true,
+    dailyTokens: 0,
     ...(vendor.routed ? { routed: true } : {}),
   };
   return {

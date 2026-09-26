@@ -377,7 +377,8 @@ export async function* completeStream(
     .map(([, t]) => ({ id: t.id ?? "", name: t.name ?? "", args: t.args }))
     .filter((t) => t.name !== "");
 
-  options.health?.recordSuccess();
+  // A reader's own key working says nothing about the site's AI.
+  (link.provider.byok ? undefined : options.health)?.recordSuccess();
   yield {
     type: "end",
     id: linkId(link),

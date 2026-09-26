@@ -16,7 +16,7 @@
  * records the outcome if a `HealthTracker` is given.
  */
 
-import type { Link } from "./chain.js";
+import { healthFor, type Link } from "./chain.js";
 import type { HealthTracker } from "./health.js";
 
 export interface ChainAttemptFailure {
@@ -67,7 +67,7 @@ export async function tryChain<T>(chain: Link[], options: TryChainOptions<T>): P
   for (const link of chain) {
     try {
       const result = await options.attempt(link);
-      options.health?.recordSuccess();
+      (link.provider.byok ? undefined : options.health)?.recordSuccess();
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -77,6 +77,6 @@ export async function tryChain<T>(chain: Link[], options: TryChainOptions<T>): P
   }
 
   const exhausted = new ChainExhaustedError(failures);
-  options.health?.recordFailure(exhausted);
+  healthFor(chain, options.health)?.recordFailure(exhausted);
   throw exhausted;
 }
