@@ -78,6 +78,20 @@ export type Provider = {
   /** Env var overriding `dailyTokens` at call time. */
   dailyTokensEnv?: string;
   /**
+   * This link carries a READER'S OWN key (set by `byokChain`), not the
+   * deployment's.
+   *
+   * It shares its `id` with the deployment's own link to the same vendor —
+   * `groq` is `groq` — because the id is what an app shows and logs. So every
+   * piece of shared bookkeeping in this package checks this flag instead:
+   * `dayCapacityTokens` never counts it, `createLinkCooldown` never cools a
+   * link because of it, and a health tracker never records it. Without the
+   * flag, one reader's exhausted personal key could read as the site's free
+   * tier being down (a daily cooldown on `groq/<model>` for everybody), and
+   * their unmetered key as capacity the site could ration.
+   */
+  byok?: boolean;
+  /**
    * Does this vendor use ROUTED ids, where `vendor/model` names weights it
    * resells and a `:free` suffix is the difference between free routing and a
    * per-call charge? True for OpenRouter.
@@ -451,6 +465,8 @@ export function paidModelsIn(chain: Provider[]): string[] {
 export function dayCapacityTokens(chain: Provider[], env: Env = process.env): number {
   let total = 0;
   for (const provider of chain) {
+    // A reader's own key is metered by their vendor account, never by us.
+    if (provider.byok) continue;
     if (!readEnv(env, provider.keyEnv)) continue;
     const override = Number(readEnv(env, provider.dailyTokensEnv));
     total += Number.isFinite(override) && override >= 0 ? override : provider.dailyTokens;
@@ -492,4 +508,18 @@ export function chainFrom(model: string | undefined, chain: Link[]): Link[] {
   // a key, then fall through to the ordinary chain rather than dead-ending.
   const host = chain[0];
   return host ? [{ provider: host.provider, model: wanted }, ...chain] : [];
+}
+
+/** True for a link carrying a reader's own key — see `Provider.byok`. */
+export function isOwnKeyLink(link: Link): boolean {
+  return link.provider.byok === true;
+}
+
+/**
+ * The tracker to record into, or none when the chain is the reader's own key
+ * — see `Provider.byok`. One reader's bad or exhausted key says nothing about
+ * whether this site's AI works.
+ */
+export function healthFor<H>(chain: readonly Link[], health: H | undefined): H | undefined {
+  return chain.length > 0 && chain.every(isOwnKeyLink) ? undefined : health;
 }

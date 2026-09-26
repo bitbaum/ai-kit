@@ -48,6 +48,10 @@ export function createLinkCooldown(
   return {
     record(link, error) {
       if (!(error instanceof LinkFailure)) return;
+      // A reader's own key refusing says nothing about the deployment's link
+      // with the same id — cooling it would take the site's free tier offline
+      // for everybody because one person's personal quota ran out.
+      if (link.provider.byok) return;
       const t = now();
       // A 404 from /chat/completions is a model the vendor no longer serves.
       // Rot is not fixed in minutes, and until the id leaves the chain every
