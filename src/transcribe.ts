@@ -114,7 +114,8 @@ async function transcribeLink(
   const form = new FormData();
   form.set("file", options.audio, options.filename ?? "audio.webm");
   form.set("model", link.model);
-  if (options.language) form.set("language", options.language);
+  const language = whisperLanguage(options.language);
+  if (language) form.set("language", language);
   if (options.prompt) form.set("prompt", options.prompt);
   if (options.words) {
     form.set("response_format", "verbose_json");
@@ -231,6 +232,41 @@ export function timedWords(body: unknown): TimedWord[] | undefined {
  * Throws `ChainExhaustedError` carrying every link's failure, so a log shows
  * what was actually tried rather than only the last thing that broke.
  */
+/**
+ * The languages Whisper accepts as a `language` hint (ISO-639-1, plus `haw`
+ * and `yue`), as Groq lists them in its 400 for anything else.
+ */
+const WHISPER_LANGUAGES = new Set(
+  (
+    "af am ar as az ba be bg bn bo br bs ca cs cy da de el en es et eu fa fi fo fr gl gu ha haw he hi hr ht hu hy id is " +
+    "it ja jv ka kk km kn ko la lb ln lo lt lv mg mi mk ml mn mr ms mt my ne nl nn no oc pa pl ps pt ro ru sa sd si sk " +
+    "sl sn so sq sr su sv sw ta te tg th tk tl tr tt uk ur uz vi yi yo yue zh"
+  ).split(" "),
+);
+
+/**
+ * Languages Whisper has no code for, mapped to the one it writes them as.
+ * Swiss German (`gsw`) is transcribed as German — Whisper has no Alemannic.
+ */
+const WHISPER_FALLBACK: Record<string, string> = { gsw: "de", als: "de" };
+
+/**
+ * A caller's language — a BCP-47 tag or an app locale — as a hint Whisper will
+ * take, or `undefined` to let it detect the language itself.
+ *
+ * WHY. heidi passed its UI locale straight through. On its Swiss German pages
+ * that is `gsw`, Groq answered 400 "unsupported language: gsw" on every link,
+ * and the microphone said it did not work in this browser. A hint the vendor
+ * rejects is worse than no hint: no hint auto-detects, a bad one fails the
+ * whole take. Romansh (`rm`) failed the same way.
+ */
+export function whisperLanguage(language: string | undefined): string | undefined {
+  if (!language) return undefined;
+  const primary = language.trim().toLowerCase().split(/[-_]/)[0] ?? "";
+  const mapped = WHISPER_FALLBACK[primary] ?? primary;
+  return WHISPER_LANGUAGES.has(mapped) ? mapped : undefined;
+}
+
 export async function transcribe(options: TranscribeOptions): Promise<TranscribeResult> {
   return walkChain(options, (link, key) => transcribeLink(link, options, key));
 }

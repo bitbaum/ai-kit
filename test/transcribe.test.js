@@ -10,7 +10,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { transcribe, ChainExhaustedError, createHealthTracker } from "@bitbaum/ai-kit";
+import {
+  transcribe,
+  whisperLanguage,
+  ChainExhaustedError,
+  createHealthTracker,
+} from "@bitbaum/ai-kit";
 
 const ENV = { GROQ_API_KEY: "g", OPENROUTER_API_KEY: "o" };
 
@@ -105,6 +110,41 @@ test("the audio goes as multipart, with the model and the language", async () =>
   assert.equal(body.get("model"), "whisper-big");
   assert.equal(body.get("language"), "de");
   assert.equal(body.get("file").name, "dictation.webm");
+});
+
+test("a language Whisper has no code for never fails the take", async () => {
+  // heidi's Swiss German pages sent `gsw`; Groq answered 400 on every link and
+  // the microphone said it did not work. Swiss German is written as German,
+  // and anything else Whisper does not know is left to auto-detect.
+  const sent = async (language) => {
+    let body;
+    await transcribe({
+      audio: audio(),
+      language,
+      chain: chain(),
+      env: ENV,
+      fetchImpl: async (_url, init) => {
+        body = init.body;
+        return ok("guet");
+      },
+    });
+    return body.get("language");
+  };
+  assert.equal(await sent("gsw"), "de");
+  assert.equal(await sent("de-CH"), "de");
+  assert.equal(await sent("rm"), null);
+  assert.equal(await sent("fr"), "fr");
+});
+
+test("whisperLanguage: tags and locales to a hint Whisper takes, or none", () => {
+  assert.equal(whisperLanguage("gsw-CH"), "de");
+  assert.equal(whisperLanguage("EN_us"), "en");
+  assert.equal(whisperLanguage("ru"), "ru");
+  assert.equal(whisperLanguage("haw"), "haw");
+  assert.equal(whisperLanguage("rm"), undefined);
+  assert.equal(whisperLanguage("xx"), undefined);
+  assert.equal(whisperLanguage(""), undefined);
+  assert.equal(whisperLanguage(undefined), undefined);
 });
 
 test("no content-type is set by hand", async () => {

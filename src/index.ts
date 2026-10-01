@@ -142,6 +142,7 @@ export {
 } from "./vision.js";
 export {
   transcribe,
+  whisperLanguage,
   timedWords,
   type TimedWord,
   type TranscribeOptions,
