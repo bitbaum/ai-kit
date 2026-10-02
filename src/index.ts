@@ -148,6 +148,7 @@ export {
   type TranscribeOptions,
   type TranscribeResult,
 } from "./transcribe.js";
+export { speechChain, speechConfigured, looksLikeSilence } from "./speech.js";
 
 export {
   type HealthStatus,
