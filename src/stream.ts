@@ -138,6 +138,52 @@ type OpenChoice = {
   finish_reason?: string | null;
 };
 
+/**
+ * `{"a":1}{"b":2}` → two argument strings. The last line of defence for a
+ * vendor that concatenates parallel calls into one (see `absorb`): one valid
+ * object, or anything that is not a run of objects, is returned unchanged.
+ */
+export function splitJsonObjects(args: string): string[] {
+  const trimmed = args.trim();
+  if (!trimmed.startsWith("{")) return [args];
+  const parts: string[] = [];
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let start = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        parts.push(trimmed.slice(start, i + 1));
+        start = i + 1;
+        while (start < trimmed.length && /\s/.test(trimmed.charAt(start))) start++;
+        if (start < trimmed.length && trimmed.charAt(start) !== "{") return [args];
+      }
+    }
+  }
+  if (depth !== 0 || parts.length < 2) return [args];
+  return parts.every((p) => {
+    try {
+      JSON.parse(p);
+      return true;
+    } catch {
+      return false;
+    }
+  })
+    ? parts
+    : [args];
+}
+
 /** Turn one OpenAI-shaped chunk into deltas. */
 function deltasFrom(parsed: unknown): { deltas: StreamDelta[]; finishReason: string | null } {
   const choice = (parsed as { choices?: OpenChoice[] })?.choices?.[0];
@@ -320,15 +366,38 @@ export async function* completeStream(
   let finishReason = opened.finishReason;
   const text: string[] = [];
   const tools = new Map<number, { id?: string; name?: string; args: string }>();
+  // Which assembled call each wire `index` is currently filling. Usually the
+  // index itself; see below for when it is not.
+  const slotOf = new Map<number, number>();
+  let nextSlot = 0;
 
   const absorb = (d: StreamDelta) => {
     if (d.type === "text") text.push(d.text);
     else if (d.type === "tool") {
-      const cur = tools.get(d.index) ?? { args: "" };
+      // Gemini's OpenAI-compatible stream sends PARALLEL calls with no `index`
+      // (read as 0), each with its own `id`. Keyed on the index alone they were
+      // glued into one call — `{"query":"Russia"}{"kind":"country",...}` — whose
+      // arguments parse to nothing, so every call ran empty (seen live in
+      // Substrata's Ask, 2026-10-02). A new id on a slot that already holds a
+      // named call is a new call.
+      let slot = slotOf.get(d.index);
+      const held = slot === undefined ? undefined : tools.get(slot);
+      if (
+        slot === undefined ||
+        (d.id !== undefined &&
+          held?.id !== undefined &&
+          held.id !== d.id &&
+          held.name !== undefined)
+      ) {
+        slot = Math.max(nextSlot, d.index);
+        nextSlot = slot + 1;
+        slotOf.set(d.index, slot);
+      }
+      const cur = tools.get(slot) ?? { args: "" };
       if (d.id !== undefined) cur.id = d.id;
       if (d.name !== undefined) cur.name = d.name;
       if (d.args !== undefined) cur.args += d.args;
-      tools.set(d.index, cur);
+      tools.set(slot, cur);
     }
   };
 
@@ -374,7 +443,13 @@ export async function* completeStream(
 
   const toolCalls: ToolCall[] = [...tools.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([, t]) => ({ id: t.id ?? "", name: t.name ?? "", args: t.args }))
+    .flatMap(([, t]) =>
+      splitJsonObjects(t.args).map((args, i) => ({
+        id: i === 0 ? (t.id ?? "") : `${t.id ?? "call"}-${i}`,
+        name: t.name ?? "",
+        args,
+      })),
+    )
     .filter((t) => t.name !== "");
 
   // A reader's own key working says nothing about the site's AI.

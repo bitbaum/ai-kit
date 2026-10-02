@@ -289,6 +289,64 @@ test("tool-call fragments are assembled across chunks", async () => {
   assert.equal(end.finishReason, "tool_calls");
 });
 
+test("parallel calls sent without an index stay separate calls (Gemini)", async () => {
+  // Gemini's OpenAI-compatible stream: each parallel call whole, its own id,
+  // and NO index. Read as index 0 they were glued into one call whose
+  // arguments — {"query":"Russia"}{"kind":"country"} — parsed to nothing.
+  const frag = (o) => `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [o] } }] })}\n\n`;
+  const deltas = await collect(
+    completeStream({
+      messages: [{ role: "user", content: "hi" }],
+      chain: [link("groq")],
+      env,
+      fetchImpl: async () =>
+        okStream([
+          frag({ id: "a", function: { name: "search", arguments: '{"query":"Russia"}' } }),
+          frag({ id: "b", function: { name: "get", arguments: '{"name":"neon"}' } }),
+          frag({ id: "c", function: { name: "search", arguments: '{"query":"helium"}' } }),
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] })}\n\n`,
+        ]),
+    }),
+  );
+  const calls = deltas.at(-1).toolCalls;
+  assert.deepEqual(
+    calls.map((c) => [c.name, JSON.parse(c.args)]),
+    [
+      ["search", { query: "Russia" }],
+      ["get", { name: "neon" }],
+      ["search", { query: "helium" }],
+    ],
+  );
+});
+
+test("arguments glued from several calls are split back into calls", async () => {
+  const frag = (o) => `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [o] } }] })}\n\n`;
+  const deltas = await collect(
+    completeStream({
+      messages: [{ role: "user", content: "hi" }],
+      chain: [link("groq")],
+      env,
+      fetchImpl: async () =>
+        okStream([
+          frag({
+            index: 0,
+            id: "x",
+            function: {
+              name: "trace",
+              arguments: '{"name":"NVIDIA"}{"name":"TSMC, \\"Taiwan\\" {x}"}',
+            },
+          }),
+        ]),
+    }),
+  );
+  const calls = deltas.at(-1).toolCalls;
+  assert.deepEqual(
+    calls.map((c) => JSON.parse(c.args).name),
+    ["NVIDIA", 'TSMC, "Taiwan" {x}'],
+  );
+  assert.notEqual(calls[0].id, calls[1].id, "each split call has its own id");
+});
+
 test("the request asks for a stream and carries the key last", async () => {
   let seen;
   await collect(
