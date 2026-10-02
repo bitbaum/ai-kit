@@ -20,6 +20,19 @@ import type { Link } from "./chain.js";
 
 const LIGHT: { provider: string; model: RegExp; body: Record<string, unknown> }[] = [
   { provider: "groq", model: /^openai\/gpt-oss-/, body: { reasoning_effort: "low" } },
+  // Probed on the box 2026-10-02, same prompt, max_tokens 1500 (hidden =
+  // total - prompt - completion; Google does not report it separately):
+  //
+  //     gemini-flash-latest       default 513 hidden   "low" 0 hidden
+  //     gemini-flash-lite-latest  default   0 hidden   "low" 396 hidden
+  //     gemma-4-31b-it            default 334 hidden   "low" refused
+  //
+  // So ONLY the flash alias: on lite "low" turns thinking ON, and gemma
+  // refuses the field. The hidden tokens are not free — they are spent from
+  // max_tokens, and Substrata's answers were cut off mid-word at ~550 visible
+  // tokens of a 2400 budget; a replayed answer turn took 4.1 s default, 2.5 s
+  // on "low", for an answer of the same length.
+  { provider: "google", model: /^models\/gemini-flash-latest$/, body: { reasoning_effort: "low" } },
 ];
 
 /** Body fields asking this link for light reasoning, or none when it has no probed setting. */
