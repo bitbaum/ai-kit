@@ -102,6 +102,20 @@ test('reasoning "light" is sent only to links with a probed setting', async () =
   const [gptOss, qwen, free] = chain();
   assert.deepEqual(reasoningBody(gptOss, "light"), { reasoning_effort: "low" });
   assert.deepEqual(reasoningBody(qwen, "light"), {}, "Groq Qwen3 400s on low");
+  const google = (model) => ({ ...gptOss, provider: { ...gptOss.provider, id: "google" }, model });
+  assert.deepEqual(reasoningBody(google("models/gemini-flash-latest"), "light"), {
+    reasoning_effort: "low",
+  });
+  assert.deepEqual(
+    reasoningBody(google("models/gemini-flash-lite-latest"), "light"),
+    {},
+    "low turns lite's thinking ON",
+  );
+  assert.deepEqual(
+    reasoningBody(google("models/gemma-4-31b-it"), "light"),
+    {},
+    "gemma refuses the field",
+  );
   assert.deepEqual(reasoningBody(free, "light"), {});
   assert.deepEqual(reasoningBody(gptOss, undefined), {});
 
