@@ -21,6 +21,7 @@
  *                            way an admission gate actually admits them
  *   historyWindowLine      — what the assistant still reads of a conversation
  *   UsageAction            — a lever and its consequence, never a bare verb
+ *   utcResetExplanation    — the reset, stated without a reason it cannot back
  *
  * What each app keeps: the reads (its own tables), the plan names and prices
  * (its own config), and which levers are open. Those are product facts, and a
@@ -262,9 +263,16 @@ export interface UsageExplanation {
  * sentence that is wrong is wrong in every app at once, so this one claims
  * nothing it cannot back.
  */
-export const UTC_RESET_EXPLANATION: UsageExplanation = {
-  title: "Resets at midnight UTC",
-  body:
-    "Your count is kept per UTC day, so it resets at the same moment for everyone, wherever " +
-    "they are. Unused allowance does not roll over.",
-};
+export function utcResetExplanation(
+  /** What does not roll over, in the product's word: "messages", "allowance". */
+  unused = "allowance",
+): UsageExplanation {
+  // "messages don't", "allowance doesn't": a plural noun ends in s.
+  const verb = unused.endsWith("s") ? "don't" : "doesn't";
+  return {
+    title: "Resets at midnight UTC",
+    body:
+      "Your count is kept per UTC day, so it resets at the same moment for everyone, wherever " +
+      `they are. Unused ${unused} ${verb} roll over.`,
+  };
+}

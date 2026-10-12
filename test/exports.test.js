@@ -46,7 +46,6 @@ test("the package exports its public surface through the exports map", () => {
     // usage — what the budget numbers mean
     "PACE_MIN_USED",
     "PACE_MIN_DAY_FRACTION",
-    "UTC_RESET_EXPLANATION",
     "admissionsLeft",
     "clockAt",
     "countOf",
@@ -55,6 +54,7 @@ test("the package exports its public surface through the exports map", () => {
     "paceForecast",
     "paceLine",
     "refillsIn",
+    "utcResetExplanation",
     "weekSummary",
     // policy
     "decide",

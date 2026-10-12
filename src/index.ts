@@ -258,7 +258,6 @@ export {
   type UsageExplanation,
   PACE_MIN_USED,
   PACE_MIN_DAY_FRACTION,
-  UTC_RESET_EXPLANATION,
   admissionsLeft,
   clockAt,
   countOf,
@@ -267,6 +266,7 @@ export {
   paceForecast,
   paceLine,
   refillsIn,
+  utcResetExplanation,
   weekSummary,
 } from "./usage.js";
 

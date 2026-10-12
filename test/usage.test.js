@@ -20,7 +20,7 @@ import {
   paceLine,
   refillsIn,
   weekSummary,
-  UTC_RESET_EXPLANATION,
+  utcResetExplanation,
 } from "@bitbaum/ai-kit";
 
 const SIX_AM = new Date("2026-10-12T06:00:00Z");
@@ -126,9 +126,12 @@ test("countOf uses the app's formatter and plural", () => {
   assert.equal(countOf(2, "body", { plural: "bodies" }), "2 bodies");
 });
 
-test("the reset explanation claims only what the counter does", () => {
-  assert.match(UTC_RESET_EXPLANATION.body, /per UTC day/);
+test("the reset explanation claims only what the counter does, in the product's unit", () => {
+  const generic = utcResetExplanation();
+  assert.match(generic.body, /per UTC day/);
+  assert.match(generic.body, /Unused allowance doesn't roll over\.$/);
+  assert.match(utcResetExplanation("messages").body, /Unused messages don't roll over\.$/);
   // Groq refills on its own rolling clock, so "the providers refill at
   // midnight" would be false in every app that shows this sentence.
-  assert.doesNotMatch(UTC_RESET_EXPLANATION.body, /refill/i);
+  assert.doesNotMatch(generic.body, /refill/i);
 });

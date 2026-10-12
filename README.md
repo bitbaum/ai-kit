@@ -658,7 +658,7 @@ sentences. It lives here now, so the next app starts with it.
 import {
   paceForecast, paceLine, weekSummary, refillsIn,
   admissionsLeft, historyWindowLine, countOf,
-  type UsageAction, UTC_RESET_EXPLANATION,
+  type UsageAction, utcResetExplanation,
 } from '@bitbaum/ai-kit';
 
 const format = (n: number) => formatNumber(n);  // your app's formatter
@@ -682,7 +682,7 @@ The rules these keep, and that a screen built on them should keep too:
 - **Absent is not zero.** `weekSummary` returns `null` for an empty or
   unreadable week; draw nothing rather than "0". Seven rows ending today are
   the *last 7 days*, not "this week".
-- **Claim only what you can back.** `UTC_RESET_EXPLANATION` says what the
+- **Claim only what you can back.** `utcResetExplanation()` says what the
   counter does and gives no reason for it, because "the providers refill at
   midnight" is false of Groq.
 - **No forecast from one sample.** `paceForecast` stays silent until there is a
