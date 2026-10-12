@@ -120,8 +120,11 @@ test("historyWindowLine states the window in the product's words", () => {
 });
 
 test("countOf uses the app's formatter and plural", () => {
-  const de = (n) => n.toLocaleString("de-CH");
-  assert.equal(countOf(12_000, "token", { format: de }), "12’000 tokens");
+  // A formatter with no locale data behind it: ICU differs between Node
+  // releases (de-CH groups with ' on one and ’ on another), and what is under
+  // test is that countOf USES the formatter it is given, not ICU.
+  const underscores = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "_");
+  assert.equal(countOf(12_000, "token", { format: underscores }), "12_000 tokens");
   assert.equal(countOf(1, "day"), "1 day");
   assert.equal(countOf(2, "body", { plural: "bodies" }), "2 bodies");
 });
