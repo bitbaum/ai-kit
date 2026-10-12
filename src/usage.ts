@@ -180,6 +180,9 @@ export interface WeekSummary {
  *
  * `limit` is TODAY's cap. A day spent on a smaller plan before an upgrade would
  * otherwise read as capped at the larger number.
+ *
+ * Seven rows ending today are the LAST SEVEN DAYS, not "this week": say "Last 7
+ * days" on screen (bitbaum/orangecat#1318 corrected exactly that).
  */
 export function weekSummary(
   days: readonly { used: number }[] | null,
@@ -249,10 +252,19 @@ export interface UsageExplanation {
   body: string;
 }
 
-/** The reset, explained — the same words in every product, because the reason is the same. */
+/**
+ * The reset, explained — the same words in every product.
+ *
+ * It states only what the counter does. An earlier draft gave a reason ("that
+ * is when the providers' free allowances refill"), which is false of Groq:
+ * its limits refill on their own rolling clock. OrangeCat's usage page shipped
+ * that reason and had to take it back (bitbaum/orangecat#1318). A shared
+ * sentence that is wrong is wrong in every app at once, so this one claims
+ * nothing it cannot back.
+ */
 export const UTC_RESET_EXPLANATION: UsageExplanation = {
   title: "Resets at midnight UTC",
   body:
-    "Because that is when the model providers' free allowances refill, so the counter follows " +
-    "their clock, not yours. Unused allowance does not roll over.",
+    "Your count is kept per UTC day, so it resets at the same moment for everyone, wherever " +
+    "they are. Unused allowance does not roll over.",
 };

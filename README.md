@@ -680,7 +680,11 @@ The rules these keep, and that a screen built on them should keep too:
   what happens next, and every lever (`UsageAction`) with its consequence — a
   bare "Upgrade" is a guess.
 - **Absent is not zero.** `weekSummary` returns `null` for an empty or
-  unreadable week; draw nothing rather than "0 this week".
+  unreadable week; draw nothing rather than "0". Seven rows ending today are
+  the *last 7 days*, not "this week".
+- **Claim only what you can back.** `UTC_RESET_EXPLANATION` says what the
+  counter does and gives no reason for it, because "the providers refill at
+  midnight" is false of Groq.
 - **No forecast from one sample.** `paceForecast` stays silent until there is a
   rate (`PACE_MIN_USED`, `PACE_MIN_DAY_FRACTION`, or your own `minUsed`).
 - **Count the way the gate admits.** `admissionsLeft` never promises ten cheap

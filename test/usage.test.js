@@ -126,6 +126,9 @@ test("countOf uses the app's formatter and plural", () => {
   assert.equal(countOf(2, "body", { plural: "bodies" }), "2 bodies");
 });
 
-test("the reset explanation names the reason, not just the time", () => {
-  assert.match(UTC_RESET_EXPLANATION.body, /free allowances refill/);
+test("the reset explanation claims only what the counter does", () => {
+  assert.match(UTC_RESET_EXPLANATION.body, /per UTC day/);
+  // Groq refills on its own rolling clock, so "the providers refill at
+  // midnight" would be false in every app that shows this sentence.
+  assert.doesNotMatch(UTC_RESET_EXPLANATION.body, /refill/i);
 });
