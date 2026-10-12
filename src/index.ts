@@ -248,6 +248,28 @@ export {
 export { type LinkCooldown, createLinkCooldown } from "./cooldown.js";
 export { reasoningBody } from "./reasoning.js";
 
+// What the budget numbers MEAN: pace, the week, when it refills, what the
+// assistant still reads — the half a meter leaves out. See src/usage.ts.
+export {
+  type FormatCount,
+  type PaceForecast,
+  type WeekSummary,
+  type UsageAction,
+  type UsageExplanation,
+  PACE_MIN_USED,
+  PACE_MIN_DAY_FRACTION,
+  admissionsLeft,
+  clockAt,
+  countOf,
+  historyWindowLine,
+  nextUtcMidnight,
+  paceForecast,
+  paceLine,
+  refillsIn,
+  utcResetExplanation,
+  weekSummary,
+} from "./usage.js";
+
 // Readers first: background jobs spend from a capped, reserved slice of the day.
 export {
   type ClassPolicy,
