@@ -646,6 +646,53 @@ person actually thinks in. Nobody has an intuition for a token; "about 40 more
 answers" is actionable, and "7,927 tokens" is a sum the reader has to do and will
 get wrong.
 
+## Showing a person their budget — what the numbers mean
+
+`answersRemaining` says how much is left. A usage screen also owes the reader
+what that *means*, and every app in this fleet ended up writing the same half
+twice: Loki's Settings → AI and OrangeCat's `/settings/usage` grew it
+separately in October 2026, with the same rules and slightly different
+sentences. It lives here now, so the next app starts with it.
+
+```ts
+import {
+  paceForecast, paceLine, weekSummary, refillsIn,
+  admissionsLeft, historyWindowLine, countOf,
+  type UsageAction, UTC_RESET_EXPLANATION,
+} from '@bitbaum/ai-kit';
+
+const format = (n: number) => formatNumber(n);  // your app's formatter
+
+paceLine(paceForecast({ used: 5, limit: 10, now }), {
+  subject: 'your 10 messages', plural: true, then: ', then Cat waits until midnight UTC',
+});
+// → "At today's pace your 10 messages run out around 12:00 UTC, then Cat waits until midnight UTC."
+
+weekSummary(lastSevenDays, todaysLimit);   // { total, activeDays, cappedDays } or null
+refillsIn(resetAt, Date.now());            // "in 4 hours" / "in under a minute" / null
+admissionsLeft(remainingTokens, gateEstimate, measuredPerAnswer);
+historyWindowLine({ assistant: 'Cat', items: 20, unit: 'message', memory: 'Memory', format });
+```
+
+The rules these keep, and that a screen built on them should keep too:
+
+- **A number that implies no action is decoration.** Pair every figure with
+  what happens next, and every lever (`UsageAction`) with its consequence — a
+  bare "Upgrade" is a guess.
+- **Absent is not zero.** `weekSummary` returns `null` for an empty or
+  unreadable week; draw nothing rather than "0 this week".
+- **No forecast from one sample.** `paceForecast` stays silent until there is a
+  rate (`PACE_MIN_USED`, `PACE_MIN_DAY_FRACTION`, or your own `minUsed`).
+- **Count the way the gate admits.** `admissionsLeft` never promises ten cheap
+  answers on a remainder the gate refuses after one.
+- **The app formats numbers.** Pass your formatter; a page must not group
+  digits two different ways.
+- **The app owns product facts.** Plan names, prices, which levers are open and
+  the reads from its own tables stay in the app; this module only phrases.
+
+Adopted by Loki (`lib/ai/budget-view.ts`) and OrangeCat
+(`services/cat/usage-meaning.ts`) — read either for a whole screen built on it.
+
 ## Versioning
 
 **This package is 1.x, and that is a functional decision rather than a
