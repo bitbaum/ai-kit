@@ -747,6 +747,11 @@ uninteresting, which is a better property than being always current.
 pnpm run verify  # lint + typecheck + build + test
 ```
 
+**Releasing is merging.** Raise `version` in `package.json` in the same PR as
+the change. When the PR merges, the auto-merge sweep dispatches `publish.yml`
+on main, which publishes that version if the registry does not have it yet and
+does nothing if it does. A pushed `v*` tag still works too.
+
 MIT.
 
 ---

@@ -1,7 +1,18 @@
 name: Publish
 
-# Publishing is driven by a version tag, so the released artifact is always
-# traceable to a commit. `npm version` creates the tag; pushing it ships.
+# Two ways in, one release:
+#
+#  - a version tag (`v1.21.0`) pushed by hand, as every release used to be;
+#  - a dispatch on main, which the auto-merge sweep sends after every merge
+#    (`rearm_workflows: "ci.yml publish.yml"` in auto-merge.yml).
+#
+# The dispatch was configured long before this workflow could receive it: with
+# no `workflow_dispatch` trigger every re-arm was dropped, so a merged version
+# bump sat unpublished until someone with tag rights pushed a tag (1.21.0 sat
+# for three days). Now a merge that raises the version ships itself, the way
+# the apps deploy themselves, and a merge that does not is a green no-op (the
+# registry check below). A dispatched release is traceable to its commit
+# through npm provenance, which attests the exact commit and workflow run.
 #
 # Auth is npm Trusted Publishing (OIDC): npmjs.com trusts exactly THIS
 # workflow in THIS repo (configured 2026-09-05). No token exists anywhere —
@@ -10,6 +21,7 @@ name: Publish
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch: {}
 
 # Publishing is idempotent: the job first asks the registry whether
 # package.json's version already exists and skips (green) if it does. A
@@ -31,6 +43,14 @@ jobs:
       # was built by this workflow from this commit.
       id-token: write
     steps:
+      # A dispatch may only release main: a release cut from a feature branch
+      # is the one that cannot be taken back.
+      - name: Refuse a dispatch from anything but main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Publish was dispatched on ${GITHUB_REF}; only main may release." >&2
+          exit 1
+
       - uses: actions/checkout@v7
 
       # pnpm version comes from "packageManager" in package.json (SSOT).
@@ -67,7 +87,7 @@ jobs:
       # Refuse to publish a tag whose version does not match package.json,
       # rather than silently shipping the wrong number.
       - name: Check tag matches package version
-        if: steps.check.outputs.publish == 'true'
+        if: steps.check.outputs.publish == 'true' && github.ref_type == 'tag'
         run: |
           tag="${GITHUB_REF_NAME#v}"
           pkg=$(node -p "require('./package.json').version")
