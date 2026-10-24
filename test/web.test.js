@@ -661,3 +661,21 @@ test("article citation links survive extraction without executing or fetching th
   assert.ok(!text.includes("user:pass"));
   assert.ok(!text.includes("menu.example"));
 });
+
+test("article body and methods are selected before menus consume the character cap", () => {
+  const menu = Array.from(
+    { length: 250 },
+    (_, i) => `<a href="https://menu.example/${i}">Explore menu item ${i}</a>`,
+  ).join(" ");
+  const paragraphs = Array.from(
+    { length: 8 },
+    (_, i) =>
+      `<p>Observation ${i}: scientists compare measurements across independent instruments, explain the reference period, and describe uncertainty in the resulting observations.</p>`,
+  ).join("");
+  const html = `<html><head><title>Measured observations</title></head><body><div class="menu">${menu}</div><main><article><h1>Measured observations</h1>${paragraphs}<p>The methods include an <a href="/methods">independent comparison</a> and a stated uncertainty interval.</p></article></main><footer>${menu}</footer></body></html>`;
+  const result = extractReadableText(html, 4000, "https://publisher.example/story");
+  assert.ok(result.text.includes("The methods include"));
+  assert.ok(result.text.includes("https://publisher.example/methods"));
+  assert.ok(!result.text.includes("Explore menu item"));
+  assert.equal(result.truncated, false);
+});
