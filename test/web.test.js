@@ -612,3 +612,39 @@ test("'nothing found' and 'could not look' produce OPPOSITE instructions", () =>
   assert.match(couldNot, /must NOT say that nothing was found/);
   assert.notEqual(nothing, couldNot);
 });
+
+// These public ranges border special-use /24s. Broad /16 checks blocked real
+// publishers, including NASA/WordPress VIP at 192.0.66.108.
+test("special-use IPv4 /24s do not block neighbouring public networks", () => {
+  for (const address of [
+    "192.0.66.108",
+    "192.0.1.1",
+    "198.51.99.1",
+    "198.51.101.1",
+    "203.0.112.1",
+    "203.0.114.1",
+  ])
+    assert.equal(isPrivateAddress(address), false, address);
+  for (const address of [
+    "192.0.0.1",
+    "198.51.100.1",
+    "203.0.113.1",
+    "::ffff:192.0.0.1",
+    "::ffff:198.51.100.1",
+    "::ffff:203.0.113.1",
+  ])
+    assert.equal(isPrivateAddress(address), true, address);
+});
+
+test("canonical hex-mapped IPv6 cannot bypass the private IPv4 guard", () => {
+  for (const address of [
+    "::ffff:7f00:1",
+    "0:0:0:0:0:ffff:7f00:1",
+    "::ffff:a9fe:a9fe",
+    "::7f00:1",
+    "::ffff:c0a8:101",
+  ])
+    assert.equal(isPrivateAddress(address), true, address);
+  for (const address of ["::ffff:c000:426c", "::ffff:808:808", "0:0:0:0:0:ffff:808:808"])
+    assert.equal(isPrivateAddress(address), false, address);
+});
