@@ -648,3 +648,16 @@ test("canonical hex-mapped IPv6 cannot bypass the private IPv4 guard", () => {
   for (const address of ["::ffff:c000:426c", "::ffff:808:808", "0:0:0:0:0:ffff:808:808"])
     assert.equal(isPrivateAddress(address), false, address);
 });
+
+test("article citation links survive extraction without executing or fetching them", () => {
+  const { text } = extractReadableText(
+    `<nav><a href="https://menu.example/">Menu</a></nav><p>The <a href="/study?a=1&amp;b=2">study</a> reports results. <a href="javascript:alert(1)">Unsafe</a> <a href="https://user:pass@example.org/">Credential</a> <a href="#footnote">Note</a></p>`,
+    10000,
+    "https://publisher.example/article",
+  );
+  assert.ok(text.includes("study (https://publisher.example/study?a=1&b=2)"));
+  assert.ok(text.includes("Unsafe"));
+  assert.ok(!text.includes("javascript:"));
+  assert.ok(!text.includes("user:pass"));
+  assert.ok(!text.includes("menu.example"));
+});
