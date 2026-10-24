@@ -18,13 +18,14 @@
  * - It never throws. The caller is an agent loop; an unreadable page is a fact
  *   about the world to reason about, not an exception to unwind through.
  *
- * Extraction is deliberately regex-based and dependency-free. A DOM parser
- * would read more sites (SPAs especially) at the cost of making this package
- * depend on one, and the failure it would fix — a JS-rendered page yielding
- * nothing — is honestly reportable: empty text with `ok: true` tells the model
- * the page had nothing readable, which is true and useful.
+ * Static article extraction uses Readability and an inert linkedom DOM before
+ * the character cap. Page menus must not crowd the actual article out of the
+ * model context. No page JavaScript is executed and no linked resources are
+ * fetched. Short/non-article documents retain the conservative text fallback.
  */
 import type { PageOutcome, ReadOptions, WebFailure } from "./types.js";
+import { Readability } from "@mozilla/readability";
+import { parseHTML } from "linkedom";
 import { validateFetchTarget, type LookupFn, defaultLookup } from "./ssrf.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -229,7 +230,23 @@ export function extractReadableText(
     ? decodeEntities(stripTags(titleMatch[1])).replace(/\s+/g, " ").trim().slice(0, 300)
     : "";
 
-  let body = html.replace(/<!--[\s\S]*?-->/g, " ");
+  let articleHtml = html;
+  try {
+    const { document } = parseHTML(html);
+    if (baseUrl) {
+      Object.defineProperty(document, "documentURI", { value: baseUrl });
+      Object.defineProperty(document, "baseURI", { value: baseUrl });
+    }
+    const article = new Readability(
+      document as unknown as ConstructorParameters<typeof Readability>[0],
+      { charThreshold: 200, disableJSONLD: true },
+    ).parse();
+    if (article?.content && (article.textContent?.trim().length ?? 0) >= 200)
+      articleHtml = article.content;
+  } catch {
+    // Unusual/static fragments still get the existing inert text extraction.
+  }
+  let body = articleHtml.replace(/<!--[\s\S]*?-->/g, " ");
   body = body.replace(new RegExp(`<(${BLOCK_TAGS})\\b[^>]*>[\\s\\S]*?<\\/\\1>`, "gi"), " ");
   // An unclosed <script> would otherwise leave its whole tail in the text.
   body = body.replace(new RegExp(`<(${BLOCK_TAGS})\\b[^>]*>[\\s\\S]*$`, "i"), " ");
