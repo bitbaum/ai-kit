@@ -70,24 +70,26 @@ function isPrivateIpv4(address: string): boolean {
   if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
     return true;
   }
-  const [a, b] = parts as [number, number, number, number];
+  const [a, b, c] = parts as [number, number, number, number];
   if (a === 0) return true; // "this network"
   if (a === 10) return true; // RFC1918
   if (a === 127) return true; // loopback
   if (a === 169 && b === 254) return true; // link-local — cloud metadata lives here
   if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
   if (a === 192 && b === 168) return true; // RFC1918
-  if (a === 192 && b === 0) return true; // IETF protocol assignments (incl. 192.0.0.0/24)
+  if (a === 192 && b === 0 && c === 0) return true; // IETF protocol assignments (incl. 192.0.0.0/24)
   if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
-  if (a === 198 && b === 51) return true; // TEST-NET-2
-  if (a === 203 && b === 0) return true; // TEST-NET-3
+  if (a === 198 && b === 51 && c === 100) return true; // TEST-NET-2
+  if (a === 203 && b === 0 && c === 113) return true; // TEST-NET-3
   if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
   if (a >= 224) return true; // multicast + reserved
   return false;
 }
 
 function isPrivateIpv6(address: string): boolean {
-  const lower = address.toLowerCase().split("%")[0] ?? "";
+  // URL canonicalisation also covers expanded and hex-mapped IPv4 spellings.
+  const raw = address.toLowerCase().split("%")[0] ?? "";
+  const lower = new URL(`http://[${raw}]/`).hostname.slice(1, -1);
 
   // IPv4-mapped (::ffff:10.0.0.1) and IPv4-compatible forms are IPv4 questions
   // wearing an IPv6 spelling. Judge the embedded address, not the wrapper.
@@ -96,6 +98,12 @@ function isPrivateIpv6(address: string): boolean {
     return isPrivateIpv4(mapped[1]);
   }
 
+  const hexMapped = lower.match(/^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hexMapped?.[1] && hexMapped[2]) {
+    const high = parseInt(hexMapped[1], 16);
+    const low = parseInt(hexMapped[2], 16);
+    return isPrivateIpv4(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`);
+  }
   if (lower === "::" || lower === "::1") return true; // unspecified, loopback
   if (lower.startsWith("fe8") || lower.startsWith("fe9")) return true; // link-local
   if (lower.startsWith("fea") || lower.startsWith("feb")) return true; // link-local
