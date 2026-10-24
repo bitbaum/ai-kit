@@ -142,7 +142,7 @@ export async function readPage(
       return { ok: false, url, failure: fetchFailure(err) };
     }
 
-    const extracted = extractReadableText(body, maxChars);
+    const extracted = extractReadableText(body, maxChars, url);
     return {
       ok: true,
       url,
@@ -216,7 +216,11 @@ export type ExtractedPage = { title: string; text: string; truncated: boolean };
  * before tag-stripping would turn an encoded `&lt;script&gt;` in page text into
  * a real tag mid-pass.
  */
-export function extractReadableText(html: string, maxChars = DEFAULT_MAX_CHARS): ExtractedPage {
+export function extractReadableText(
+  html: string,
+  maxChars = DEFAULT_MAX_CHARS,
+  baseUrl?: string,
+): ExtractedPage {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   // Collapse whitespace: stripping an inline tag leaves a space behind, so a
   // title with any markup in it ("A <b>bold</b> title") otherwise arrives with
@@ -229,6 +233,31 @@ export function extractReadableText(html: string, maxChars = DEFAULT_MAX_CHARS):
   body = body.replace(new RegExp(`<(${BLOCK_TAGS})\\b[^>]*>[\\s\\S]*?<\\/\\1>`, "gi"), " ");
   // An unclosed <script> would otherwise leave its whole tail in the text.
   body = body.replace(new RegExp(`<(${BLOCK_TAGS})\\b[^>]*>[\\s\\S]*$`, "i"), " ");
+  // Keep citation destinations in the model-visible text. Stripping anchors
+  // entirely made referenced claims look uncited. These are supplied links,
+  // not independently fetched evidence. Never keep executable/credential URLs.
+  body = body.replace(
+    /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>/gi,
+    (
+      _whole,
+      double: string | undefined,
+      single: string | undefined,
+      bare: string | undefined,
+      label: string,
+    ) => {
+      const href = decodeEntities(double ?? single ?? bare ?? "").trim();
+      if (!href || href.startsWith("#") || href.length > 2048) return label;
+      try {
+        const target = new URL(href, baseUrl);
+        if (!["http:", "https:"].includes(target.protocol) || target.username || target.password)
+          return label;
+        const text = decodeEntities(stripTags(label)).trim();
+        return text === target.href ? label : `${label} (${target.href})`;
+      } catch {
+        return label;
+      }
+    },
+  );
   // Keep block boundaries as newlines so lists and paragraphs do not run
   // together into one sentence the model then reads as a single claim.
   body = body.replace(/<\/(p|div|li|tr|h[1-6]|section|article|br)\s*>/gi, "\n");
