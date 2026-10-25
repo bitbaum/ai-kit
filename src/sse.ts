@@ -48,8 +48,9 @@ export function sseEvent(value: unknown): string {
  * `EventSource` is not an option for most of these: they are POSTs carrying a
  * session cookie and a JSON body, and EventSource can only GET.
  *
- * Deliberately tolerant of framing — comments, blank lines, `event:` lines and
- * the `[DONE]` sentinel are skipped, and a frame that fails to parse is dropped
+ * Data lines are joined until a blank line ends the event. LF, CRLF and CR
+ * are accepted, including delimiters split across network chunks. Comments,
+ * event metadata and the `[DONE]` sentinel are skipped; invalid JSON is dropped
  * rather than killing the stream. A malformed keepalive is not worth losing an
  * answer over.
  *
@@ -64,34 +65,61 @@ export async function readEventStream<E>(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let data: string[] = [];
+  let skipLF = false;
+  let completed = false;
+
+  const dispatch = () => {
+    const payload = data.join("\n");
+    data = [];
+    if (!payload || payload.trim() === "[DONE]") return;
+    let parsed: E;
+    try {
+      parsed = JSON.parse(payload) as E;
+    } catch {
+      return;
+    }
+    onEvent(parsed);
+  };
+  const line = (value: string) => {
+    if (value === "") return dispatch();
+    if (value.startsWith(":")) return;
+    const colon = value.indexOf(":");
+    const field = colon === -1 ? value : value.slice(0, colon);
+    let content = colon === -1 ? "" : value.slice(colon + 1);
+    if (content.startsWith(" ")) content = content.slice(1);
+    if (field === "data") data.push(content);
+  };
+  const consume = (chunk: string) => {
+    for (const character of chunk) {
+      if (skipLF) {
+        skipLF = false;
+        if (character === "\n") continue;
+      }
+      if (character === "\r" || character === "\n") {
+        const value = buffer;
+        buffer = "";
+        skipLF = character === "\r";
+        line(value);
+      } else buffer += character;
+    }
+  };
 
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        consume(decoder.decode());
+        // An event without its terminating blank line is incomplete at EOF.
+        completed = true;
+        break;
+      }
       // `stream: true` matters for the same reason the buffer does: a chunk can
       // split a multi-byte character, and decoding it alone yields U+FFFD.
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      // The last element is whatever arrived after the final newline — it may
-      // be half a frame, so it waits for the next chunk. Dropping it here is
-      // the bug this function exists to not have.
-      buffer = lines.pop() ?? "";
-      for (const raw of lines) {
-        const line = raw.trim();
-        if (!line || line.startsWith(":") || line.startsWith("event:")) continue;
-        const payload = line.startsWith("data:") ? line.slice(5).trim() : line;
-        if (!payload || payload === "[DONE]") continue;
-        let parsed: E;
-        try {
-          parsed = JSON.parse(payload) as E;
-        } catch {
-          continue;
-        }
-        onEvent(parsed);
-      }
+      consume(decoder.decode(value, { stream: true }));
     }
   } finally {
+    if (!completed) await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
