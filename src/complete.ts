@@ -489,8 +489,9 @@ async function callLink(
     });
   }
 
-  const choice = (parsed as { choices?: Array<{ message?: Record<string, unknown> }> })
-    ?.choices?.[0];
+  const choice = (
+    parsed as { choices?: Array<{ message?: Record<string, unknown>; finish_reason?: string }> }
+  )?.choices?.[0];
   const rawContent = firstText(choice?.message);
   const native = toolCallsFrom(choice?.message);
 
@@ -519,7 +520,7 @@ async function callLink(
   if (content.trim() === "" && toolCalls.length === 0) {
     throw new LinkFailure(
       link,
-      `${linkId(link)}: 200 with empty content — model produced no output`,
+      `${linkId(link)}: 200 with empty content — model produced no output (finish_reason: ${choice?.finish_reason ?? "unknown"})`,
       {
         status: res.status,
       },
