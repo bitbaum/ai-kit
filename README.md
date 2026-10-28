@@ -759,3 +759,9 @@ MIT.
 Part of **[bitbaum](https://bitbaum.orangecat.ch)** — AI-native products on open
 infrastructure, built in Zürich. Every package here lists the apps that use it:
 **[which apps use ai-kit](https://bitbaum.orangecat.ch/packages/#ai-kit)**.
+
+Native tool exchanges can be passed back to `complete` as message history:
+assistant messages accept `content: null` with their `tool_calls`, followed by
+`role: "tool"` messages carrying the matching `tool_call_id`. The request keeps
+these fields intact; vision detection treats a null tool-request body as having
+no image. Domain tool authorization and execution remain the caller's job.
