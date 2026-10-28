@@ -659,3 +659,18 @@ test("native tool history retains nullable assistant content and tool-call ident
   assert.equal(result.text, "There are seven.");
   assert.deepEqual(sent, messages);
 });
+
+test("empty completion diagnostics retain the provider's finish reason", async () => {
+  await assert.rejects(
+    complete({
+      chain: [chain()[0]],
+      env: ENV,
+      messages: [{ role: "user", content: "hello" }],
+      fetchImpl: async () =>
+        Response.json({ choices: [{ message: { content: null }, finish_reason: "length" }] }),
+    }),
+    (error) =>
+      error instanceof ChainExhaustedError &&
+      error.failures[0].message.includes("finish_reason: length"),
+  );
+});
