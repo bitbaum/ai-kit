@@ -90,7 +90,14 @@ export type ContentPart =
  */
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | ContentPart[];
+  /** Assistant tool requests may carry no visible text. */
+  content: string | ContentPart[] | null;
+  /** Native assistant tool requests, retained when sending tool results. */
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>;
   /** Present on `role: "tool"` replies; passed through untouched. */
   tool_call_id?: string;
   name?: string;

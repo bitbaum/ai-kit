@@ -633,3 +633,29 @@ test("a plain string message is untouched by the widening", async () => {
   });
   assert.equal(sent.messages[0].content, "hello");
 });
+
+test("native tool history retains nullable assistant content and tool-call identity", async () => {
+  const messages = [
+    { role: "user", content: "Look up the current count" },
+    {
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        { id: "call-count", type: "function", function: { name: "count", arguments: "{}" } },
+      ],
+    },
+    { role: "tool", tool_call_id: "call-count", content: "7" },
+  ];
+  let sent;
+  const result = await complete({
+    chain: [chain()[0]],
+    env: ENV,
+    messages,
+    fetchImpl: async (_url, init) => {
+      sent = JSON.parse(init.body).messages;
+      return ok("There are seven.");
+    },
+  });
+  assert.equal(result.text, "There are seven.");
+  assert.deepEqual(sent, messages);
+});

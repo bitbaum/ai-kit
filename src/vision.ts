@@ -129,7 +129,7 @@ export function visionProviders(chain: Provider[], env: Env = process.env): Prov
 /** Is this message carrying at least one image part? */
 function messageHasImage(message: ChatMessage): boolean {
   const content = message.content;
-  if (typeof content === "string") return false;
+  if (!Array.isArray(content)) return false;
   return content.some((part: ContentPart) => part.type === "image_url");
 }
 
