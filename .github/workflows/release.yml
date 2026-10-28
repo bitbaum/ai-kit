@@ -183,7 +183,12 @@ jobs:
           fi
           git config user.name "bitbaum-fleet"
           git config user.email "fleet@bitbaum.invalid"
-          git add package.json dist
+          git add package.json
+          # Update tracked build output, but respect packages that ignore dist.
+          git ls-files -z -- dist | xargs -0 -r git add --
+          if [ -d dist ] && ! git check-ignore -q dist; then
+            git add -- dist
+          fi
           git commit -q -m "release v$NEXT"
           git tag -a "v$NEXT" -m "v$NEXT"
           # Atomic: the commit and the tag land together or not at all. A main
