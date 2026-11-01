@@ -1,6 +1,6 @@
 {
   "name": "@bitbaum/ai-kit",
-  "version": "1.21.5",
+  "version": "1.22.0",
   "license": "MIT",
   "author": "Mao Nakamoto",
   "homepage": "https://github.com/bitbaum/ai-kit#readme",
@@ -70,6 +70,10 @@
     "./web": {
       "types": "./dist/web/index.d.ts",
       "default": "./dist/web/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "default": "./dist/mcp.js"
     },
     "./capability": {
       "types": "./dist/capability/index.d.ts",

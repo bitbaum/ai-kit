@@ -563,6 +563,25 @@ class with no policy (the reader asking now) is limited by capacity alone.
 
 ---
 
+### Reaching a connector — `@bitbaum/ai-kit/mcp`
+
+```ts
+import { McpClient, toolDefinitionsFrom } from '@bitbaum/ai-kit/mcp';
+
+const loki = new McpClient({ url: 'https://loki.orangecat.ch/api/mcp', token });
+const tools = await loki.listTools();                 // as the server lists them
+const defs = toolDefinitionsFrom(tools);              // the shape complete() takes
+const out = await loki.callTool('ask_loki', { message: 'What did my fleet do today?' });
+out.text;                                             // the text parts, joined
+```
+
+Streamable HTTP, a bearer token the caller already holds, the handshake once
+with the session id carried, and both response shapes the transport allows (a
+JSON body or an SSE stream) read the same way. A server-side tool error comes
+back as `isError`, a JSON-RPC error as an `McpError` with its code. No OAuth
+flow here: that is the product's, with its own consent screen, and the token
+it ends with is what this client takes.
+
 ## What it deliberately does not ship
 
 **~~An HTTP client.~~** It ships one now — see [`complete()`](#make-the-call--complete-owns-the-fetch).
