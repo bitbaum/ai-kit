@@ -5,6 +5,10 @@ linked below. Git commit dates are source dates, not inferred npm publication
 dates. A GitHub release does not itself establish npm publication.
 Application adoption and deployment evidence are tracked separately.
 
+## 1.22.0
+
+- `@bitbaum/ai-kit/mcp`: an MCP client, the way a product's bots reach a connector. Streamable HTTP, a bearer token the caller holds, `initialize` once with the session id carried, `tools/list` and `tools/call`, and both response shapes the transport allows (a JSON body or an SSE stream) read the same way. `toolDefinitionsFrom` hands the server's tools back in the shape `complete()` takes. No OAuth flow (that is the product's, with its consent screen), no stdio, no resources or prompts until a caller needs them. First callers: OrangeCat's bots reaching Loki's `/api/mcp` as the person.
+
 ## 1.21.4
 
 - [Tagged source `v1.21.4`](https://github.com/bitbaum/ai-kit/tree/f80949a7cce18f196d6a7740503c8d585bbb6b44)
