@@ -784,3 +784,20 @@ assistant messages accept `content: null` with their `tool_calls`, followed by
 `role: "tool"` messages carrying the matching `tool_call_id`. The request keeps
 these fields intact; vision detection treats a null tool-request body as having
 no image. Domain tool authorization and execution remain the caller's job.
+
+## Images — `@bitbaum/ai-kit/images`
+
+One transport for image generation, so no app keeps its own client.
+
+```ts
+import { generateImage } from "@bitbaum/ai-kit/images";
+
+const result = await generateImage({ api: "gemini", apiKey, model, prompt });
+if (result.ok) save(result.image.bytes, result.image.mimeType);
+```
+
+`api` is `"images"` (OpenAI-style `/images/generations`), `"openrouter-chat"`
+(chat completions with `modalities: ["image","text"]`) or `"gemini"`
+(`generateContent` with an image part). Key and model are always the
+caller's; nothing reads the environment. Failures return `{ ok: false, error }`
+and never throw. Label what it makes as AI-generated wherever it is shown.
