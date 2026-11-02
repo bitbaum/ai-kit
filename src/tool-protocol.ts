@@ -42,6 +42,30 @@ export interface ParsedToolCall {
   args: string;
 }
 
+export type AnswerPrefixState = "pending" | "protocol" | "answer";
+
+/**
+ * Hold an unfinished XML tool-call prefix before showing streamed prose.
+ * A fallback model can narrate a call even when the answer channel offered no
+ * tools. That is neither a user-facing answer nor permission to execute it.
+ * Callers may fail that link over while no visible text has been emitted.
+ * Ordinary HTML and fenced code remain answers; no payload is executed here.
+ */
+export function classifyAnswerPrefix(text: string): AnswerPrefixState {
+  const prefix = text.trimStart().toLowerCase();
+  if (!prefix) return "pending";
+  for (const marker of ["<tool_call", "<tool_calls", "<function="]) {
+    if (marker.startsWith(prefix)) {
+      return prefix === marker && marker.endsWith("=") ? "protocol" : "pending";
+    }
+    if (prefix.startsWith(marker)) {
+      const next = prefix.slice(marker.length, marker.length + 1);
+      if (marker.endsWith("=") || /[\s>]/.test(next)) return "protocol";
+    }
+  }
+  return "answer";
+}
+
 /**
  * The convention, as prompt text.
  *
