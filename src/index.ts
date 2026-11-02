@@ -190,6 +190,8 @@ export {
 
 export {
   type ParsedToolCall,
+  type AnswerPrefixState,
+  classifyAnswerPrefix,
   TEXT_TOOL_PROTOCOL_HINT,
   parseTextToolCalls,
   stripToolCallLines,
