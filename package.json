@@ -95,6 +95,10 @@
     "./byok-probe": {
       "types": "./dist/byok-probe.d.ts",
       "default": "./dist/byok-probe.js"
+    },
+    "./images": {
+      "types": "./dist/images.d.ts",
+      "default": "./dist/images.js"
     }
   },
   "scripts": {

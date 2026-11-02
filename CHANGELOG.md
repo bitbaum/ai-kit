@@ -5,6 +5,10 @@ linked below. Git commit dates are source dates, not inferred npm publication
 dates. A GitHub release does not itself establish npm publication.
 Application adoption and deployment evidence are tracked separately.
 
+## Unreleased
+
+- `@bitbaum/ai-kit/images`: one image-generation transport — OpenAI-style `/images/generations`, OpenRouter chat with image output, Gemini `generateContent`. Caller passes key and model; never throws. Replaces OrangeCat's app-local client (migration pending) and serves BiasLens.
+
 ## 1.22.0
 
 - `@bitbaum/ai-kit/mcp`: an MCP client, the way a product's bots reach a connector. Streamable HTTP, a bearer token the caller holds, `initialize` once with the session id carried, `tools/list` and `tools/call`, and both response shapes the transport allows (a JSON body or an SSE stream) read the same way. `toolDefinitionsFrom` hands the server's tools back in the shape `complete()` takes. No OAuth flow (that is the product's, with its consent screen), no stdio, no resources or prompts until a caller needs them. First callers: OrangeCat's bots reaching Loki's `/api/mcp` as the person.
