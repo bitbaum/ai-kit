@@ -366,6 +366,26 @@ your sources" becomes a string check instead of a line in a prompt. Search
 without citation binding makes hallucination worse, not better: the invented
 sentence is now surrounded by real ones.
 
+**When every configured backend is down — keyless fallback.** A self-hosted
+SearXNG is refused by upstream engines from time to time, and without a paid
+key the chain then has nothing left. Two backends need no key and no account:
+
+```ts
+import { webSearch, withKeylessFallback } from "@bitbaum/ai-kit/web";
+
+const found = await webSearch(q, { limit: 6, lang: "en" }, { providers: withKeylessFallback(process.env) });
+```
+
+`gdeltProvider()` searches the GDELT Project's DOC 2.0 API (worldwide news, a
+rolling three months) and paces itself to one request every five seconds per
+process, GDELT's own ask; a call that cannot wait its turn fails as
+`rate_limited` without being sent. `wikipediaProvider()` searches one Wikipedia
+language edition (from `lang`, default `en`) and gives no date, because the
+API's timestamp is the last edit. Both are `coverage: "partial"`: an empty
+answer from a news archive or an encyclopedia is not the web having nothing, so
+it never turns a search into `nothing`. Neither is in `defaultProviders`; which
+slices of the web to answer from is the app's call.
+
 It does not summarise, re-rank with an LLM, crawl, render JavaScript, or cache.
 The first two are the model's job and belong upstream where the app's prompt
 lives; the last three are a different product with a different cost profile.

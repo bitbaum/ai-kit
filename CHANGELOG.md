@@ -7,6 +7,7 @@ Application adoption and deployment evidence are tracked separately.
 
 ## Unreleased
 
+- `@bitbaum/ai-kit/web` (1.25.0): keyless fallback backends for when every configured one is down. `gdeltProvider` (GDELT DOC 2.0 news search, paced to one request every five seconds per process) and `wikipediaProvider` (one Wikipedia edition), `keylessProviders()` and `withKeylessFallback(env)`. A provider may declare `coverage: "partial"`; a partial index answering empty never makes a search `nothing`. `defaultProviders` is unchanged.
 - `@bitbaum/ai-kit/images`: one image-generation transport — OpenAI-style `/images/generations`, OpenRouter chat with image output, Gemini `generateContent`. Caller passes key and model; never throws. Replaces OrangeCat's app-local client (migration pending) and serves BiasLens.
 
 ## 1.22.0
