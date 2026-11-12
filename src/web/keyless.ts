@@ -44,6 +44,8 @@ export type KeylessOptions = {
 
 const DEFAULT_USER_AGENT = "bitbaum-ai-kit (+https://github.com/bitbaum/ai-kit)";
 const DEFAULT_GDELT_INTERVAL_MS = 5_000;
+/** The least time worth sending a GDELT request with. */
+const MIN_REQUEST_MS = 1_000;
 
 function limitOf(limit: number | undefined): number {
   if (!limit || !Number.isFinite(limit)) return 8;
@@ -98,23 +100,60 @@ const GDELT_LANGUAGE: Record<string, string> = {
   zh: "chinese",
 };
 
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
+/** Letters and digits in a token, outside quotes and parentheses. */
+function lettersIn(token: string): number {
+  return token.replace(/[^\p{L}\p{N}]/gu, "").length;
+}
+
 /**
- * GDELT refuses a query holding a keyword it calls too short, so one- and
- * two-letter words are dropped (outside quoted phrases); `site` becomes its
- * `domain:` operator and a language hint its `sourcelang:` operator.
+ * The query GDELT is sent. GDELT refuses a keyword it calls too short (seen
+ * live: "AI chips" → "Your search contained a keyword that was too short"),
+ * so a one- or two-letter word is joined to its neighbour as a quoted phrase
+ * ("AI chips" → `"AI chips"`) rather than dropped, which would answer a
+ * broader question than was asked. A short word in lower case is a function
+ * word ("is", "of") and goes; a lone short name with no neighbour goes too.
+ * CJK words are quoted, not measured. `OR` and the parentheses grouping it are
+ * kept; parentheses without an `OR` go (GDELT accepts them only around OR'd
+ * terms), and so do unbalanced quotes. `site` becomes `domain:`, a language
+ * hint `sourcelang:`.
  */
 export function gdeltQuery(query: string, opts: { site?: string; lang?: string } = {}): string {
-  const parts: string[] = [];
-  for (const m of query.matchAll(/"[^"]+"|\S+/g)) {
-    const token = m[0];
-    if (token.startsWith('"') || token.replace(/[^\p{L}\p{N}]/gu, "").length >= 3)
-      parts.push(token);
+  let q = query.replace(/[“”„]/g, '"');
+  if ((q.match(/"/g) ?? []).length % 2) q = q.replace(/"/g, " ");
+  if (!/\sOR\s/.test(q)) q = q.replace(/[()]/g, " ");
+  const all = [...q.matchAll(/"[^"]+"|\S+/g)].map((m) => m[0]);
+  const special = (t: string) => t === "OR" || t.startsWith('"') || CJK.test(t);
+  // A short word in lower case is a function word ("is", "of", "in"): it goes.
+  // A short one in capitals or with a digit is a name ("AI", "EU", "5G"): it stays.
+  const acronym = (t: string) => /^[\p{Lu}\p{N}]+$/u.test(t.replace(/[^\p{L}\p{N}]/gu, ""));
+  const tokens = all.filter(
+    (t) => special(t) || lettersIn(t) >= 3 || (lettersIn(t) > 0 && acronym(t)),
+  );
+  const plain = (t: string | undefined): t is string =>
+    !!t && !special(t) && !/[()]/.test(t) && lettersIn(t) >= 3;
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    if (t === "OR" || t.startsWith('"')) {
+      out.push(t);
+    } else if (CJK.test(t)) {
+      out.push(`"${t.replace(/[()]/g, "")}"`);
+    } else if (lettersIn(t) >= 3) {
+      out.push(t);
+    } else if (!/[()]/.test(t) && plain(tokens[i + 1])) {
+      out.push(`"${t} ${tokens[i + 1]}"`);
+      i++;
+    } else if (!/[()]/.test(t) && plain(out.at(-1))) {
+      out[out.length - 1] = `"${out.at(-1)} ${t}"`;
+    }
   }
   const host = hostOf(opts.site);
-  if (host) parts.push(`domain:${host}`);
+  if (host) out.push(`domain:${host}`);
   const lang = GDELT_LANGUAGE[(opts.lang ?? "").toLowerCase().split("-")[0] ?? ""];
-  if (lang) parts.push(`sourcelang:${lang}`);
-  return parts.join(" ");
+  if (lang) out.push(`sourcelang:${lang}`);
+  return out.join(" ");
 }
 
 /** "20261110T050000Z" → "2026-11-10T05:00:00Z"; anything else → undefined. */
@@ -128,7 +167,12 @@ export function gdeltProvider(
   options: KeylessOptions = {},
   doFetch: Fetch = globalThis.fetch,
 ): SearchProvider {
-  const interval = options.gdeltIntervalMs ?? DEFAULT_GDELT_INTERVAL_MS;
+  const asked = options.gdeltIntervalMs;
+  // A bad interval would corrupt the pacing every GDELT caller in the process shares.
+  const interval =
+    typeof asked === "number" && Number.isFinite(asked) && asked >= 0
+      ? asked
+      : DEFAULT_GDELT_INTERVAL_MS;
   const name = "gdelt";
   const fail = (query: string, failure: WebFailure): SearchOutcome => ({
     ok: false,
@@ -148,7 +192,8 @@ export function gdeltProvider(
       const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
       const now = Date.now();
       const slot = Math.max(now, gdeltNextAt);
-      if (slot - now >= timeoutMs) {
+      // Not worth a slot: a request left with under a second would only time out.
+      if (timeoutMs - (slot - now) < MIN_REQUEST_MS) {
         return fail(query, {
           kind: "rate_limited",
           reason:
@@ -173,9 +218,9 @@ export function gdeltProvider(
         });
         if (!res.ok) return fail(query, status(res.status, "GDELT"));
         const text = await res.text();
-        let body: { articles?: unknown };
+        let body: { articles?: unknown } | null;
         try {
-          body = JSON.parse(text) as { articles?: unknown };
+          body = JSON.parse(text) as { articles?: unknown } | null;
         } catch {
           // GDELT answers a refused query with a sentence, not JSON, and HTTP 200.
           return fail(
@@ -188,9 +233,16 @@ export function gdeltProvider(
                 },
           );
         }
+        if (!body || typeof body !== "object") {
+          return fail(query, {
+            kind: "bad_response",
+            reason: "GDELT answered with something other than results.",
+          });
+        }
         const rows = Array.isArray(body.articles) ? body.articles : [];
         const results: WebResult[] = [];
         for (const r of rows) {
+          if (!r || typeof r !== "object") continue;
           const row = r as Record<string, unknown>;
           const link = typeof row.url === "string" ? row.url.trim() : "";
           if (!/^https?:\/\//i.test(link)) continue;
@@ -230,6 +282,23 @@ function snippetText(raw: unknown): string {
     .slice(0, 600);
 }
 
+/**
+ * The Wikipedia edition a language names: "de-CH" → "de", "zh-yue" stays
+ * (it is an edition of its own), "simple" stays. Undefined when it names none.
+ */
+function editionFor(lang: string | undefined): string | undefined {
+  const code = lang?.trim().toLowerCase();
+  if (!code) return undefined;
+  if (
+    /^(simple|zh-yue|zh-min-nan|zh-classical|be-tarask|bat-smg|roa-rup|nds-nl|map-bms|fiu-vro)$/.test(
+      code,
+    )
+  )
+    return code;
+  const primary = code.split(/[-_]/)[0];
+  return primary && /^[a-z]{2,3}$/.test(primary) ? primary : undefined;
+}
+
 export function wikipediaProvider(
   options: KeylessOptions = {},
   doFetch: Fetch = globalThis.fetch,
@@ -246,14 +315,16 @@ export function wikipediaProvider(
     coverage: "partial",
     configured: () => true,
     async search(query, opts): Promise<SearchOutcome> {
-      const lang = (opts.lang ?? options.wikipediaLang ?? "en").toLowerCase().split("-")[0] || "en";
-      if (!/^[a-z]{2,3}$/.test(lang)) return { ok: true, provider: name, query, results: [] };
-      const host = `${lang}.wikipedia.org`;
-      const site = hostOf(opts.site);
+      const site = hostOf(opts.site)?.replace(/^www\./, "");
+      // A search limited to one edition ("de.wikipedia.org") searches that edition.
+      const siteEdition = site?.match(/^([a-z][a-z0-9-]*)\.(?:m\.)?wikipedia\.org$/)?.[1];
       // Restricted to another site: Wikipedia has nothing there by construction.
-      if (site && site !== host && site !== "wikipedia.org") {
+      if (site && !siteEdition && site !== "wikipedia.org") {
         return { ok: true, provider: name, query, results: [] };
       }
+      const lang =
+        siteEdition ?? editionFor(opts.lang) ?? editionFor(options.wikipediaLang) ?? "en";
+      const host = `${lang}.wikipedia.org`;
       const url = new URL(`https://${host}/w/api.php`);
       url.searchParams.set("action", "query");
       url.searchParams.set("list", "search");
@@ -271,10 +342,22 @@ export function wikipediaProvider(
           signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS),
         });
         if (!res.ok) return fail(query, status(res.status, "Wikipedia"));
-        const body = (await res.json()) as { query?: { search?: unknown } };
+        const body = (await res.json().catch(() => null)) as {
+          query?: { search?: unknown };
+          error?: { code?: unknown };
+        } | null;
+        // MediaWiki reports a refused search (maxlag, read-only, a bad
+        // parameter) in a 200 JSON body: an error, never an empty search.
+        if (!body || typeof body !== "object" || body.error) {
+          return fail(query, {
+            kind: "bad_response",
+            reason: `Wikipedia answered with an error${typeof body?.error?.code === "string" ? ` (${body.error.code})` : ""}.`,
+          });
+        }
         const rows = Array.isArray(body.query?.search) ? body.query.search : [];
         const results: WebResult[] = [];
         for (const r of rows) {
+          if (!r || typeof r !== "object") continue;
           const row = r as Record<string, unknown>;
           const title = typeof row.title === "string" ? row.title.trim() : "";
           if (!title) continue;

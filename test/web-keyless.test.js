@@ -150,8 +150,8 @@ test("GDELT is paced across calls, and a call that cannot wait its turn fails wi
     () => new Response(JSON.stringify({ articles: [] }), { status: 200 }),
   );
   const p = gdeltProvider({ gdeltIntervalMs: 120 }, f);
-  await p.search("helium one", { timeoutMs: 1000 });
-  await p.search("helium two", { timeoutMs: 1000 });
+  await p.search("helium one", { timeoutMs: 5000 });
+  await p.search("helium two", { timeoutMs: 5000 });
   assert.equal(calls.length, 2);
   assert.ok(
     calls[1].at - calls[0].at >= 110,
@@ -239,4 +239,67 @@ test("keyless backends are partial, need no configuration, and come after the co
     withKeylessFallback({}).map((p) => p.name),
     ["gdelt", "wikipedia"],
   );
+});
+
+test("GDELT keeps OR and its parentheses, joins acronyms to a neighbour, quotes CJK, and drops stray quotes", () => {
+  assert.equal(gdeltQuery("(gallium OR germanium)"), "(gallium OR germanium)");
+  assert.equal(gdeltQuery("(gallium germanium)"), "gallium germanium");
+  assert.equal(gdeltQuery("EU tariffs on US steel"), '"EU tariffs" "US steel"');
+  assert.equal(gdeltQuery("AI chips"), '"AI chips"');
+  assert.equal(gdeltQuery("芯片 出口"), '"芯片" "出口"');
+  assert.equal(gdeltQuery('he said "it is'), "said");
+  assert.equal(gdeltQuery("AI"), "");
+});
+
+test("a GDELT body that is not an object is a bad response, never 'unreachable'", async () => {
+  resetGdeltPacing();
+  const { f } = fakeFetch(() => new Response("null", { status: 200 }));
+  const out = await gdeltProvider({ gdeltIntervalMs: 0 }, f).search("helium", {});
+  assert.equal(out.ok, false);
+  assert.equal(out.failure.kind, "bad_response");
+  const rows = fakeFetch(
+    () =>
+      new Response(
+        JSON.stringify({ articles: [null, 3, { url: "https://n.example/a", title: "A" }] }),
+      ),
+  );
+  const ok = await gdeltProvider({ gdeltIntervalMs: 0 }, rows.f).search("helium", {});
+  assert.equal(ok.results.length, 1);
+});
+
+test("a bad pacing interval cannot corrupt the shared pacing, and a near-deadline call is not sent", async () => {
+  resetGdeltPacing();
+  const { f, calls } = fakeFetch(() => new Response(JSON.stringify({ articles: [] })));
+  const nan = gdeltProvider({ gdeltIntervalMs: Number.NaN }, f);
+  const a = await nan.search("helium", { timeoutMs: 8000 });
+  assert.equal(a.ok, true);
+  const b = await nan.search("helium", { timeoutMs: 8000 });
+  assert.equal(b.ok, true, "the default 5 s interval applied, not NaN");
+  assert.ok(calls[1].at - calls[0].at >= 4900);
+  resetGdeltPacing();
+  const short = await gdeltProvider({ gdeltIntervalMs: 0 }, f).search("helium", { timeoutMs: 500 });
+  assert.equal(short.ok, false);
+  assert.equal(short.failure.kind, "rate_limited");
+  assert.equal(calls.length, 2, "a call with under a second left was never sent");
+  resetGdeltPacing();
+});
+
+test("Wikipedia searches the edition a site names, and an edition code that is not a plain language", async () => {
+  const { f, calls } = fakeFetch(() => Response.json({ query: { search: [] } }));
+  await wikipediaProvider({}, f).search("Gallium", { site: "de.wikipedia.org" });
+  await wikipediaProvider({}, f).search("Gallium", { lang: "de-CH" });
+  await wikipediaProvider({ wikipediaLang: "simple" }, f).search("Gallium", {});
+  await wikipediaProvider({}, f).search("Gallium", { lang: "x" });
+  assert.deepEqual(
+    calls.map((c) => new URL(c.url).host),
+    ["de.wikipedia.org", "de.wikipedia.org", "simple.wikipedia.org", "en.wikipedia.org"],
+  );
+});
+
+test("a MediaWiki error in a 200 body is a failure, never an empty search", async () => {
+  const { f } = fakeFetch(() => Response.json({ error: { code: "maxlag" } }));
+  const out = await wikipediaProvider({}, f).search("Gallium", {});
+  assert.equal(out.ok, false);
+  assert.equal(out.failure.kind, "bad_response");
+  assert.match(out.failure.reason, /maxlag/);
 });
