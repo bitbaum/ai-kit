@@ -51,6 +51,14 @@ export {
 
 export { searxngProvider, braveProvider, tavilyProvider, defaultProviders } from "./providers.js";
 
+export {
+  gdeltProvider,
+  wikipediaProvider,
+  keylessProviders,
+  withKeylessFallback,
+  type KeylessOptions,
+} from "./keyless.js";
+
 export { readPage, extractReadableText, type ReadDeps, type ExtractedPage } from "./read.js";
 
 export {

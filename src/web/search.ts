@@ -94,9 +94,10 @@ export async function webSearch(
       attempts.push({ provider: provider.name, outcome: "failed", failure: outcome.failure });
       continue;
     }
-    anyBackendAnswered = true;
     if (outcome.results.length === 0) {
       attempts.push({ provider: provider.name, outcome: "empty", count: 0 });
+      // A partial index having nothing is not the web having nothing.
+      if (provider.coverage !== "partial") anyBackendAnswered = true;
       continue;
     }
     attempts.push({ provider: provider.name, outcome: "results", count: outcome.results.length });

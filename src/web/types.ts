@@ -63,6 +63,14 @@ export type SearchProvider = {
   readonly name: string;
   /** False when the env it needs is absent — the chain skips it without a call. */
   configured(): boolean;
+  /**
+   * What this backend indexes. `"web"` (the default when absent): the open
+   * web, so its empty answer is a real negative. `"partial"`: one slice of it —
+   * a news archive, an encyclopedia — so its empty answer says nothing about
+   * the rest of the web, and the chain never reports `nothing` on its word
+   * alone. Its results are still results.
+   */
+  readonly coverage?: "web" | "partial";
   search(query: string, opts: SearchOptions): Promise<SearchOutcome>;
 };
 
