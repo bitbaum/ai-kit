@@ -8,6 +8,14 @@
  * `complete()` unchanged, and its test suite is what proves they survived.
  */
 import {
+  checkSpend,
+  isPaidProvider,
+  recordSpend,
+  spendApp,
+  SpendLimitError,
+  type SpendRefusal,
+} from "./spend.js";
+import {
   type Env,
   type Link,
   type Provider,
@@ -42,6 +50,13 @@ export interface WalkOptions {
   /** The caller's cancellation, covering the whole walk. */
   signal?: AbortSignal;
   onLinkFailure?: (link: Link, error: Error) => void;
+  /**
+   * The app this call spends for (./spend): its paid caps and opt-in. Unset:
+   * the provider's env prefix (withEnvPrefix), then AI_APP_ID.
+   */
+  app?: string;
+  /** Input tokens this call will send, for the paid caps' token check. */
+  estimateInputTokens?: number;
 }
 
 /**
@@ -69,6 +84,14 @@ export interface WalkOptions {
  * functions called `resolveChain` in one package would be a coin flip at every
  * import site.
  */
+/** Tokens a completed call reports (an OpenAI-shaped `usage`), when it does. */
+function usageOf(result: unknown): { input: number; output: number } | null {
+  const usage = (result as { raw?: { usage?: Record<string, unknown> } } | null)?.raw?.usage;
+  if (!usage) return null;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return { input: n(usage.prompt_tokens), output: n(usage.completion_tokens) };
+}
+
 export function walkLinks(options: WalkOptions): Link[] {
   const env = options.env ?? process.env;
   const base = options.chain ?? usableChain(options.providers ?? freeChain(), env);
@@ -85,6 +108,13 @@ export async function walkChain<T>(
   const failures: ChainAttemptFailure[] = [];
   const deadProviders = new Set<string>();
 
+  // The spend rules (./spend): paid off unless opted in, daily caps, the free
+  // loop guard. A cap that is reached is not walked around onto another paid
+  // vendor: once one paid link is refused, the rest of the paid links are too.
+  const refusals: Array<{ message: string; reason: SpendRefusal }> = [];
+  let paidStopped = false;
+  let attempted = 0;
+
   for (const link of chain) {
     // A daily cap already condemned this vendor earlier in the walk. Its other
     // models draw on the same exhausted budget, so trying them buys a dead
@@ -97,9 +127,29 @@ export async function walkChain<T>(
       continue;
     }
 
+    const app = spendApp(link, options.app, env);
+    if (paidStopped && isPaidProvider(link.provider)) continue;
+    const verdict = checkSpend(link, app, env, { estimateIn: options.estimateInputTokens });
+    if (!verdict.ok) {
+      refusals.push({ message: verdict.message, reason: verdict.reason });
+      failures.push({ link, message: verdict.message });
+      console.warn(`[ai-kit] ${verdict.message}`);
+      if (isPaidProvider(link.provider)) paidStopped = true;
+      continue;
+    }
+    recordSpend(verdict.scopes, { calls: 1 });
+    attempted++;
+
     try {
       const result = await attempt(link, key);
       (link.provider.byok ? undefined : options.health)?.recordSuccess();
+      if (verdict.paid) {
+        const usage = usageOf(result);
+        recordSpend(verdict.scopes, {
+          inputTokens: usage?.input ?? options.estimateInputTokens ?? 0,
+          outputTokens: usage?.output ?? 0,
+        });
+      }
       return result;
     } catch (error) {
       const failure = error as LinkFailure;
@@ -140,6 +190,15 @@ export async function walkChain<T>(
       // strictly worse. Stop, and let the caller shorten the prompt.
       if (failure.kind === "size") break;
     }
+  }
+
+  // Nothing was called: every usable link was refused by the spend rules.
+  // Said as what it is, not as a vendor outage.
+  if (attempted === 0 && refusals.length > 0) {
+    throw new SpendLimitError(
+      refusals.map((r) => r.message),
+      refusals.map((r) => r.reason),
+    );
   }
 
   const exhausted = new ChainExhaustedError(failures);

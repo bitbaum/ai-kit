@@ -34,15 +34,17 @@ and check the answer is non-empty. Then wire it.
 | Vendor | Free? | Quota shape | Verified |
 | --- | --- | --- | --- |
 | **Groq** | Yes | Per MODEL: requests/day and TPM each. Tokens/day is org-wide and appears in NO header — only in the 429 body (see `readingFromRefusalBody`). | 2026-09-13 |
-| **Google (Gemini)** | Yes | Per PROJECT — the only pool an app need not share. Free tier qualification is "active project or free trial", **no billing account**. | 2026-09-15 |
 | **OpenRouter** | Yes | **50 requests/day for the whole ACCOUNT** unpaid. A one-time $10 credit raises it to 1000/day, and `:free` models never consume that credit. | 2026-09-13 |
 
 Chain order is **capacity, not preference**: the scarcest pool goes last, which
 is why OpenRouter is the final link despite having the widest catalogue.
 
-**The Google trade, stated because it is a real one:** its free tier says
-content is used to improve Google's products; the paid tier says the opposite.
-It is the second-to-last link, so the exposure is the tail of traffic.
+**Google is not in the chain; it bills.** It was wired here as a free
+per-project tier on `GEMINI_API_KEY`. The tier is free only on a project with
+**no billing account**; the fleet's key belonged to a project with billing, and
+falling through to it cost about $567 on 10-11 Nov 2026. A paid provider is used
+only when a feature opts in (README, "Paid AI"); a reader's own Google key still
+works through the BYOK path.
 
 ---
 
@@ -53,6 +55,7 @@ from scratch.
 
 | Vendor | Terms | Price (per 1M tokens) | Verified |
 | --- | --- | --- | --- |
+| **Google (Gemini API)** | Free only on a project with no billing account; on a billed project every call is charged. Removed from `freeChain()` after the fleet's billed key cost about $567 on 10-11 Nov 2026. | per model (Google's price list) | 2026-11-12 |
 | **Cerebras** | **No permanently free tier.** $5 trial credits that **expire 30 days** after being granted, consumed by usage. Their FAQ: *"Is there a permanently free tier? No."* A fresh key answers `402 payment_required` on every completion while `/models` returns 200. | gpt-oss-120b $0.35 in / $0.75 out · qwen-3.8-27b $0.99 / $1.49 | 2026-09-15 |
 | **SambaNova** | Public catalogue (7 models), all priced above zero. | — (catalogue publishes pricing) | 2026-09-15 |
 | **Chutes** | Public catalogue (14 models), all priced above zero. | — | 2026-09-15 |

@@ -120,6 +120,40 @@ export {
 } from "./stream.js";
 
 export { walkChain, walkLinks, type WalkOptions } from "./walk.js";
+// Paid AI is off unless a feature opts in, and capped when it does (./spend).
+export {
+  isPaidProvider,
+  isXaiProvider,
+  paidDisabled,
+  paidOptedIn,
+  paidAllowed,
+  appKey,
+  canonicalApp,
+  appPaidCaps,
+  fleetPaidCaps,
+  xaiCaps,
+  freeCallCap,
+  checkSpend,
+  recordSpend,
+  spendApp,
+  setSpendLedger,
+  spendLedger,
+  memorySpendLedger,
+  utcDay,
+  SpendLimitError,
+  APP_DAILY_PAID,
+  APP_ALIASES,
+  NO_AI_APPS,
+  FLEET_DAILY_PAID,
+  UNKNOWN_APP_DAILY_PAID,
+  XAI_OPTED_IN_DAILY,
+  APP_DAILY_FREE_CALLS,
+  SOLON_TRANSLATE_DAILY_CALLS,
+  type SpendCaps,
+  type SpendLedger,
+  type SpendRefusal,
+  type SpendVerdict,
+} from "./spend.js";
 
 /**
  * Vision — which links can be sent a picture, and what to do when none can.

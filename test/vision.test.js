@@ -24,7 +24,6 @@ import {
 
 const CHAIN = freeChain("TEST");
 const groq = CHAIN.find((p) => p.id === "groq");
-const google = CHAIN.find((p) => p.id === "google");
 const openrouter = CHAIN.find((p) => p.id === "openrouter");
 
 const PICTURE = { type: "image_url", image_url: { url: "data:image/png;base64,AAAA" } };
@@ -41,7 +40,6 @@ test("a declared-blind model answers 'no', not 'unknown'", () => {
 
 test("a model in visionModels answers 'yes'", () => {
   assert.equal(modelSeesImages(openrouter, "google/gemma-4-26b-a4b-it:free"), "yes");
-  assert.equal(modelSeesImages(google, "models/gemini-flash-latest"), "yes");
 });
 
 test("a model the provider never declared is UNKNOWN, never 'no'", () => {

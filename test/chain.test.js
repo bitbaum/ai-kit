@@ -128,35 +128,37 @@ test("withEnvPrefix derives both override names from the provider id", () => {
   assert.equal(p.dailyTokensEnv, "APP_MY_VENDOR_DAILY_TOKENS");
 });
 
-test("Google's ids are the ones its CATALOGUE lists, not the bare form", () => {
-  // The trap this exists for, caught before it shipped.
-  //
-  // Google's compat catalogue lists all 56 ids with a `models/` prefix and no
-  // bare form anywhere, while /chat/completions accepts BOTH (verified
-  // 2026-09-15 across max_tokens 64/256/1024 — identical answers).
-  //
-  // So a bare `gemini-flash-latest` serves perfectly AND is reported missing by
-  // checkCatalog on every run: a permanent false rot alarm about a model that
-  // works, which is worse than no alarm because it teaches the reader to ignore
-  // the one that matters.
-  const google = CHAIN.find((p) => p.id === "google");
-  assert.ok(google, "google is missing from the free chain");
-  for (const model of google.models) {
+test("Google is not in the free chain: it bills (about $567 on 10-11 Nov 2026)", () => {
+  // It sat second, on a fleet-wide GEMINI_API_KEY, described as a free
+  // per-project tier. The project had billing.
+  for (const prefix of ["AI", "LOKI", "HEIDI", "SOLON", "SUBSTRATA", "ANY_APP"]) {
+    const chain = freeChain(prefix);
+    assert.ok(!chain.some((p) => p.id === "google"), `${prefix}: google is back in the chain`);
     assert.ok(
-      model.startsWith("models/"),
-      `google id must be the catalogue's prefixed form: ${model}`,
+      !chain.some((p) => /googleapis|GEMINI|GOOGLE_API/i.test(`${p.baseUrl} ${p.keyEnv}`)),
+      `${prefix}: a Google endpoint or key is back in the chain`,
     );
   }
 });
 
-test("Google leads with an ALIAS, which is what survives a retirement", () => {
-  // `gemini-2.5-flash` — the id reached for from memory — is already refused
-  // for new accounts. `-latest` is repointed by Google as the model behind it
-  // retires, the same property that makes `openrouter/free` durable.
-  const google = CHAIN.find((p) => p.id === "google");
+test("GEMINI_API_KEY in the environment yields no Google link", () => {
+  const env = {
+    GROQ_API_KEY: "g",
+    OPENROUTER_API_KEY: "o",
+    GEMINI_API_KEY: "set-on-the-box",
+    GOOGLE_API_KEY: "set-on-the-box",
+  };
+  const links = usableChain(freeChain("HEIDI"), env);
+  assert.ok(links.length > 0);
   assert.ok(
-    google.models[0].includes("-latest"),
-    `google should lead with an alias, not a pinned version: ${google.models[0]}`,
+    !links.some((l) => /google/i.test(l.provider.id) || /googleapis/.test(l.provider.baseUrl)),
+  );
+});
+
+test("the default chain is free providers only: Groq, then OpenRouter :free last", () => {
+  assert.deepEqual(
+    CHAIN.map((p) => p.id),
+    ["groq", "openrouter"],
   );
 });
 

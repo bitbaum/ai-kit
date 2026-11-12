@@ -11,6 +11,7 @@
  * Never throws: every failure is a result with a short, user-safe reason.
  */
 
+import { paidDisabled, paidOptedIn } from "./spend.js";
 export type ImageApi = "images" | "openrouter-chat" | "gemini";
 
 export interface GenerateImageOptions {
@@ -18,11 +19,30 @@ export interface GenerateImageOptions {
   apiKey: string;
   model: string;
   prompt: string;
-  /** Defaults: images → https://api.openai.com/v1, openrouter-chat → https://openrouter.ai/api/v1, gemini → https://generativelanguage.googleapis.com/v1beta. */
+  /** Base URL per transport (images → OpenAI, openrouter-chat → OpenRouter, gemini → Google). Not a default transport: the caller names one, and every paid one is gated (imageCallIsPaid). */
   baseUrl?: string;
   timeoutMs?: number;
   fetch?: typeof fetch;
   signal?: AbortSignal;
+  /**
+   * The key is the person's own (BYOK), not the platform's. Only then does a
+   * paid transport run without the app opting in (./spend).
+   */
+  ownKey?: boolean;
+  /** The app this call spends for (./spend); unset, AI_APP_ID. */
+  app?: string;
+  env?: Record<string, string | undefined>;
+}
+
+/**
+ * Does this call cost the platform money? The Gemini and OpenAI image APIs
+ * bill per image, and so does an OpenRouter id without `:free`. Neither the
+ * "gemini" transport nor any other paid one is a default: each runs only for
+ * an app that opted in with the kill switch off, or on a person's own key.
+ */
+export function imageCallIsPaid(options: Pick<GenerateImageOptions, "api" | "model">): boolean {
+  if (options.api === "openrouter-chat") return !options.model.trim().endsWith(":free");
+  return true;
 }
 
 export interface GeneratedImage {
@@ -65,6 +85,19 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? 90_000)])
     : AbortSignal.timeout(options.timeoutMs ?? 90_000);
   if (!options.apiKey) return { ok: false, error: "no key configured" };
+  if (imageCallIsPaid(options) && !options.ownKey) {
+    const env = options.env ?? process.env;
+    const app = options.app ?? env.AI_APP_ID ?? "AI";
+    if (paidDisabled(env)) {
+      return { ok: false, error: "limit reached: paid AI is switched off (AI_PAID_DISABLED)" };
+    }
+    if (!paidOptedIn(app, env)) {
+      return {
+        ok: false,
+        error: "limit reached: a paid image API, and this app has not opted in (AI_PAID_OK)",
+      };
+    }
+  }
   if (!options.prompt.trim()) return { ok: false, error: "empty prompt" };
   try {
     let response: Response;
