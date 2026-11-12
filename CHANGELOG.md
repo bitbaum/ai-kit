@@ -7,6 +7,13 @@ Application adoption and deployment evidence are tracked separately.
 
 ## Unreleased
 
+## 1.26.0
+
+- **Google is out of the free chain; it bills.** `freeChain()` put Google's Gemini API second on a fleet-wide `GEMINI_API_KEY`, described as a free per-project tier; the project had billing and the fleet spent about $567 on 10-11 Nov 2026 falling through to it. The default chain is Groq, then OpenRouter `:free`. `visionProviders()` loses the Google seat; the free vision left is OpenRouter's `:free` Gemma id, otherwise vision is unavailable.
+- **Paid AI is off unless a feature opts in** (`spend`): `AI_PAID_DISABLED` is on when unset; `AI_PAID_OK` / `{PREFIX}_AI_PAID_OK` opts an app in. `usableChain()` drops paid providers (Google, xAI, Anthropic, OpenAI by host or key name, or `paid: true`) unless allowed; a reader's own key is unaffected.
+- **Daily paid caps**, fleet (90 calls / 120,000 in / 60,000 out) and per app (`APP_DAILY_PAID`, aliases, unknown 1 / 800 / 400, no-AI apps 0), xAI 0 until opted in then 2 / 2,000 / 1,000, and a 5,000-call free loop guard. A reached cap throws `SpendLimitError` and never walks to another paid vendor.
+- `@bitbaum/ai-kit/images`: every paid transport (including `"gemini"`) is gated the same way; `ownKey: true` for a person's own key.
+
 - `@bitbaum/ai-kit/web` (1.25.0): keyless fallback backends for when every configured one is down. `gdeltProvider` (GDELT DOC 2.0 news search, paced to one request every five seconds per process) and `wikipediaProvider` (one Wikipedia edition), `keylessProviders()` and `withKeylessFallback(env)`. A provider may declare `coverage: "partial"`; a partial index answering empty never makes a search `nothing`. `defaultProviders` is unchanged.
 - `@bitbaum/ai-kit/images`: one image-generation transport — OpenAI-style `/images/generations`, OpenRouter chat with image output, Gemini `generateContent`. Caller passes key and model; never throws. Replaces OrangeCat's app-local client (migration pending) and serves BiasLens.
 

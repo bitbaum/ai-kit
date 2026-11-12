@@ -474,8 +474,10 @@ await complete({
     },
   ],
 });
-// Groq's four text models are skipped. Gemini Flash and
-// google/gemma-4-26b-a4b-it:free are tried, in meter order.
+// Groq's text models are skipped. The free vision that remains is
+// OpenRouter's `:free` Gemma id in `visionModels` (probed live with a real
+// image); with no key for it, vision is unavailable and complete() says so
+// (NoVisionLinkError) rather than sending the picture to a blind model.
 ```
 
 **Three verdicts, and the third is the one that matters.** `visionModels` on a
@@ -615,6 +617,41 @@ may use are properties of *your* deployment. Centralise the rule, assert it
 locally.
 
 ---
+
+## Paid AI: off unless a feature opts in, and capped (`spend`)
+
+**Google is not in the chain; it bills.** `freeChain()` used to put Google's
+Gemini API second, on `GEMINI_API_KEY`, as a "free per-project tier". The key
+was fleet-wide and the project had billing, so every app on the box fell
+through to Google whenever Groq's pool was spent: about $567 on 10-11 Nov
+2026. The default chain is free providers only: Groq, then OpenRouter `:free`
+(with `openrouter/free` last).
+
+A provider is **paid** when it says so (`paid: true`) or is one of the vendors
+that bill per call (Google's Gemini API, xAI, Anthropic, OpenAI), judged by
+host or key name (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`,
+`GROK_API_KEY`, `GROK_DEPLOYMENT_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+also with an app prefix). A reader's own key (`byok`) is never paid by us.
+
+| Rule | Env | Default |
+| --- | --- | --- |
+| Kill switch: no paid call at all | `AI_PAID_DISABLED` | **on when unset**; only `0`/`false`/`off`/`no` turns it off |
+| An app opts in | `AI_PAID_OK` or `{PREFIX}_AI_PAID_OK` | off |
+| Fleet daily paid cap (UTC day) | `AI_FLEET_DAILY_PAID_CALLS` / `_INPUT_TOKENS` / `_OUTPUT_TOKENS` | 90 / 120,000 / 60,000 |
+| An app's daily paid cap | `{PREFIX}_DAILY_PAID_CALLS` / `_INPUT_TOKENS` / `_OUTPUT_TOKENS` | its row (`APP_DAILY_PAID`); an unknown app 1 / 800 / 400, never unlimited |
+| xAI, once opted in | `{PREFIX}_DAILY_XAI_CALLS` / `_INPUT_TOKENS` / `_OUTPUT_TOKENS` | 0 until opted in, then 2 / 2,000 / 1,000, from fleet headroom |
+| Free calls loop guard | `AI_APP_DAILY_FREE_CALLS` or `{PREFIX}_DAILY_FREE_CALLS` | 5,000 |
+
+Both the app's cap and the fleet's must have room. When a cap is reached, or
+paid is off, the call is not made: it is logged, and `complete()` throws
+`SpendLimitError` ("limit reached: …") instead of walking onto another paid
+vendor. Free links still serve. Named rows sum to about 60% of the fleet cap
+so an unlisted app has headroom; aliases (`aoz-wohnen`, `revamp-info`,
+`revampit`, `sbb-fundbuero`, `s-ink`) resolve to their app's row, and apps
+without AI (`NO_AI_APPS`) get nothing paid.
+
+Counts live in this process by default. For one count across every app on a
+box, give the kit a shared ledger with `setSpendLedger()`.
 
 ## Which providers, and why
 
@@ -812,12 +849,15 @@ One transport for image generation, so no app keeps its own client.
 ```ts
 import { generateImage } from "@bitbaum/ai-kit/images";
 
-const result = await generateImage({ api: "gemini", apiKey, model, prompt });
+const result = await generateImage({ api: "openrouter-chat", apiKey, model, prompt });
 if (result.ok) save(result.image.bytes, result.image.mimeType);
 ```
 
 `api` is `"images"` (OpenAI-style `/images/generations`), `"openrouter-chat"`
 (chat completions with `modalities: ["image","text"]`) or `"gemini"`
 (`generateContent` with an image part). Key and model are always the
-caller's; nothing reads the environment. Failures return `{ ok: false, error }`
+caller's. Every paid transport (`"gemini"`, `"images"`, an OpenRouter id
+without `:free`) runs only for an app that opted in with the kill switch off,
+or with `ownKey: true` for a person's own key; otherwise it answers
+`{ ok: false, error: "limit reached: …" }` and sends nothing. Failures return `{ ok: false, error }`
 and never throw. Label what it makes as AI-generated wherever it is shown.
