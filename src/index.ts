@@ -315,3 +315,23 @@ export {
   classBudget,
   estimateTokens,
 } from "./budget-class.js";
+
+// One line per model call, for every app on a box (./usage-log): who called
+// which vendor and what came of it. Set AI_USAGE_DIR and the walk writes it.
+export {
+  emitUsage,
+  setUsageSink,
+  usageEventFor,
+  parseUsageLines,
+  readUsageDay,
+  summariseUsage,
+} from "./usage-log.js";
+export type {
+  UsageEvent,
+  UsageOutcome,
+  UsageSink,
+  UsageTally,
+  ProviderUsage,
+  AppUsage,
+  UsageSummary,
+} from "./usage-log.js";
