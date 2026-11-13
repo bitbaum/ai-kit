@@ -618,6 +618,26 @@ locally.
 
 ---
 
+## Who used what: one line per model call (`usage-log`)
+
+On 10-11 Nov 2026 the fleet spent about $567 at Google and nobody could say
+which app spent it, on what, or when. The chain walk now says so itself. Set
+`AI_USAGE_DIR` once for a box and every app that walks a chain appends one
+line per link to `<dir>/<UTC day>.jsonl`: the app, the vendor, the model,
+whether it was served, failed (status, kind) or refused by the spend rules,
+and the tokens and time when known. Never a prompt, an answer or a key.
+
+```ts
+import { readUsageDay, summariseUsage } from "@bitbaum/ai-kit";
+
+const events = readUsageDay("/opt/fleet/ai-usage", "2026-11-13"); // null = could not look
+const { providers, apps } = summariseUsage(events ?? []);
+// providers[0] -> { provider: "groq", served, failed, refused, apps: [...], lastProblem }
+```
+
+`setUsageSink(fn)` sends events somewhere else (a database, a test). The app
+name is the caller's `app`, the provider's env prefix, or `AI_APP_ID`.
+
 ## Paid AI: off unless a feature opts in, and capped (`spend`)
 
 **Google is not in the chain; it bills.** `freeChain()` used to put Google's

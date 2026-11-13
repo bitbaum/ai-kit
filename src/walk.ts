@@ -26,6 +26,7 @@ import {
 } from "./chain.js";
 import { ChainExhaustedError, type ChainAttemptFailure } from "./attempt.js";
 import { LinkFailure, linkId } from "./complete.js";
+import { emitUsage, usageEventFor } from "./usage-log.js";
 import { namesModel } from "./limits.js";
 import type { HealthTracker } from "./health.js";
 
@@ -134,17 +135,33 @@ export async function walkChain<T>(
       refusals.push({ message: verdict.message, reason: verdict.reason });
       failures.push({ link, message: verdict.message });
       console.warn(`[ai-kit] ${verdict.message}`);
+      emitUsage(
+        usageEventFor(link, app, isPaidProvider(link.provider), {
+          outcome: "refused",
+          reason: verdict.reason,
+        }),
+        env,
+      );
       if (isPaidProvider(link.provider)) paidStopped = true;
       continue;
     }
     recordSpend(verdict.scopes, { calls: 1 });
     attempted++;
+    const startedAt = Date.now();
 
     try {
       const result = await attempt(link, key);
       (link.provider.byok ? undefined : options.health)?.recordSuccess();
+      const usage = usageOf(result);
+      emitUsage(
+        usageEventFor(link, app, verdict.paid, {
+          outcome: "served",
+          ms: Date.now() - startedAt,
+          ...(usage ? { inputTokens: usage.input, outputTokens: usage.output } : {}),
+        }),
+        env,
+      );
       if (verdict.paid) {
-        const usage = usageOf(result);
         recordSpend(verdict.scopes, {
           inputTokens: usage?.input ?? options.estimateInputTokens ?? 0,
           outputTokens: usage?.output ?? 0,
@@ -158,6 +175,15 @@ export async function walkChain<T>(
       // the log looking for an outage at someone else's shop.
       if (!(error instanceof LinkFailure)) throw error;
 
+      emitUsage(
+        usageEventFor(link, app, verdict.paid, {
+          outcome: "failed",
+          ms: Date.now() - startedAt,
+          ...(failure.status !== undefined ? { status: failure.status } : {}),
+          ...(failure.kind ? { kind: failure.kind } : {}),
+        }),
+        env,
+      );
       failures.push({ link, message: failure.message });
       options.onLinkFailure?.(link, failure);
 

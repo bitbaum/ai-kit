@@ -7,6 +7,11 @@ Application adoption and deployment evidence are tracked separately.
 
 ## Unreleased
 
+## 1.27.0
+
+- **One line per model call, for every app on a box** (`usage-log`). The chain walk reports each link it touches: the app, the vendor, the model, and whether it was served, failed at the vendor (status and kind) or refused by the spend rules (which rule), with tokens and time when known. Never a prompt, an answer or a key. With `AI_USAGE_DIR` set, each event is appended to `<dir>/<UTC day>.jsonl`; a box sets it once and every app writes there with no app code. `setUsageSink()` sends events elsewhere.
+- `readUsageDay(dir, day)` and `summariseUsage(events)`: per vendor (its models, the apps that used it, the last failure) and per app (the vendors it used). "Could not look" is `null`, never an empty day.
+
 ## 1.26.0
 
 - **Google is out of the free chain; it bills.** `freeChain()` put Google's Gemini API second on a fleet-wide `GEMINI_API_KEY`, described as a free per-project tier; the project had billing and the fleet spent about $567 on 10-11 Nov 2026 falling through to it. The default chain is Groq, then OpenRouter `:free`. `visionProviders()` loses the Google seat; the free vision left is OpenRouter's `:free` Gemma id, otherwise vision is unavailable.
