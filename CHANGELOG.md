@@ -7,6 +7,10 @@ Application adoption and deployment evidence are tracked separately.
 
 ## Unreleased
 
+## 1.28.0
+
+- **The usage log needs no per-app setup on a box.** 1.27.0 wrote only where `AI_USAGE_DIR` was exported, and apps whose launch script predates that variable wrote nothing: on 2026-11-13 the fleet picture listed two apps. `usageDir(env)` is `AI_USAGE_DIR` when set, otherwise `BOX_USAGE_DIR` (`/opt/fleet/ai-usage`) when that directory exists, otherwise none; `AI_USAGE_DIR=off` writes nowhere. `emitUsage` uses it. Both are exported.
+
 ## 1.27.0
 
 - **One line per model call, for every app on a box** (`usage-log`). The chain walk reports each link it touches: the app, the vendor, the model, and whether it was served, failed at the vendor (status and kind) or refused by the spend rules (which rule), with tokens and time when known. Never a prompt, an answer or a key. With `AI_USAGE_DIR` set, each event is appended to `<dir>/<UTC day>.jsonl`; a box sets it once and every app writes there with no app code. `setUsageSink()` sends events elsewhere.

@@ -15,8 +15,9 @@
  * This module is where it says so.
  *
  * ── How it reaches a page ────────────────────────────────────────────────────
- * `emitUsage` hands each event to a sink. With no sink set, and `AI_USAGE_DIR`
- * in the environment, events are appended to `<dir>/<UTC day>.jsonl`. A box
+ * `emitUsage` hands each event to a sink. With no sink set, events are appended
+ * to `<dir>/<UTC day>.jsonl`, where `<dir>` is `AI_USAGE_DIR` or, when that is
+ * unset, the box's own directory if it exists (`usageDir`). A box
  * sets that variable once for all its apps, and one reader (`readUsageDay`,
  * `summariseUsage`) then sees the whole fleet. An append of one short line is
  * atomic on POSIX, so many processes share the file without a lock.
@@ -76,6 +77,7 @@ interface FsLike {
   mkdirSync(path: string, options: { recursive: boolean }): unknown;
   readFileSync(path: string, encoding: "utf8"): string;
   readdirSync(path: string): string[];
+  existsSync?(path: string): boolean;
 }
 
 function nodeFs(): FsLike | null {
@@ -88,6 +90,31 @@ function nodeFs(): FsLike | null {
 }
 
 const dayOf = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/**
+ * Where a bitbaum box keeps the one log its apps share. An app whose launch
+ * script never exported `AI_USAGE_DIR` (Loki's and OrangeCat's predate it)
+ * wrote nothing, so the fleet picture listed two apps of twelve. The directory
+ * is a fact about the machine: when the variable is unset and this directory
+ * exists, that is the log. `AI_USAGE_DIR=off` writes nowhere.
+ */
+export const BOX_USAGE_DIR = "/opt/fleet/ai-usage";
+
+let boxDirKnown: string | null | undefined;
+
+/** The directory events are appended to, or null for none. */
+export function usageDir(env: Env = defaultEnv()): string | null {
+  const set = env.AI_USAGE_DIR?.trim();
+  if (set) return /^(off|0|false|no)$/i.test(set) ? null : set;
+  if (boxDirKnown === undefined) {
+    try {
+      boxDirKnown = nodeFs()?.existsSync?.(BOX_USAGE_DIR) ? BOX_USAGE_DIR : null;
+    } catch {
+      boxDirKnown = null;
+    }
+  }
+  return boxDirKnown;
+}
 
 /** Directories a failed write was already reported for: one warning, not one per call. */
 const warned = new Set<string>();
@@ -107,12 +134,12 @@ function appendLine(dir: string, event: UsageEvent): void {
 
 /**
  * Report one call. Never throws and never waits: a usage line is not worth an
- * answer. With no sink set, it is appended under `AI_USAGE_DIR` when that is set.
+ * answer. With no sink set, it is appended under `usageDir(env)` when there is one.
  */
 export function emitUsage(event: UsageEvent, env: Env = defaultEnv()): void {
   try {
     if (sink) return sink(event);
-    const dir = env.AI_USAGE_DIR?.trim();
+    const dir = usageDir(env);
     if (dir) appendLine(dir, event);
   } catch {
     // Counting must never be the reason a person gets no answer.

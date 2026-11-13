@@ -6,7 +6,7 @@
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -20,6 +20,8 @@ import {
   readUsageDay,
   parseUsageLines,
   summariseUsage,
+  usageDir,
+  BOX_USAGE_DIR,
 } from "@bitbaum/ai-kit";
 
 afterEach(() => {
@@ -189,4 +191,14 @@ test("the summary says who used which vendor, and what last went wrong", () => {
   assert.equal(s.from, 1);
   assert.equal(s.to, 6);
   assert.equal(summariseUsage([]).from, null);
+});
+
+test("usageDir: the variable wins, `off` writes nowhere, unset falls back to the box's directory only if it exists", () => {
+  assert.equal(usageDir({ AI_USAGE_DIR: " /tmp/x " }), "/tmp/x");
+  for (const off of ["off", "OFF", "0", "false", "no"]) {
+    assert.equal(usageDir({ AI_USAGE_DIR: off }), null, off);
+  }
+  const fallback = usageDir({});
+  assert.equal(fallback, existsSync(BOX_USAGE_DIR) ? BOX_USAGE_DIR : null);
+  assert.equal(BOX_USAGE_DIR, "/opt/fleet/ai-usage");
 });
