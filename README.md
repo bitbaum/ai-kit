@@ -626,6 +626,8 @@ which app spent it, on what, or when. The chain walk now says so itself. Set
 line per link to `<dir>/<UTC day>.jsonl`: the app, the vendor, the model,
 whether it was served, failed (status, kind) or refused by the spend rules,
 and the tokens and time when known. Never a prompt, an answer or a key.
+With the variable unset, `/opt/fleet/ai-usage` is used when it exists
+(`usageDir`, `BOX_USAGE_DIR`); `AI_USAGE_DIR=off` writes nowhere.
 
 ```ts
 import { readUsageDay, summariseUsage } from "@bitbaum/ai-kit";

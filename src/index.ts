@@ -325,6 +325,8 @@ export {
   parseUsageLines,
   readUsageDay,
   summariseUsage,
+  usageDir,
+  BOX_USAGE_DIR,
 } from "./usage-log.js";
 export type {
   UsageEvent,
