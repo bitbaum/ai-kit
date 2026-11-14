@@ -40,6 +40,8 @@ export interface UsageEvent {
   t: number;
   /** The app that made the call (`spendApp`): "ORANGECAT", "LOKI", … */
   app: string;
+  /** What the call was for, when the app said ("law-translate", "chat"). */
+  feature?: string;
   provider: string;
   model: string;
   outcome: UsageOutcome;
@@ -249,6 +251,8 @@ export interface ProviderUsage extends UsageTally {
 
 export interface AppUsage extends UsageTally {
   app: string;
+  /** What this app's calls were for, busiest first; calls that named nothing are not listed. */
+  features: Array<UsageTally & { feature: string }>;
   /** Which vendors this app called, busiest first. */
   providers: Array<UsageTally & { provider: string; paid: boolean }>;
 }
@@ -309,7 +313,10 @@ export function summariseUsage(events: readonly UsageEvent[]): UsageSummary {
   >();
   const byApp = new Map<
     string,
-    AppUsage & { p: Map<string, UsageTally & { provider: string; paid: boolean }> }
+    AppUsage & {
+      p: Map<string, UsageTally & { provider: string; paid: boolean }>;
+      f: Map<string, UsageTally & { feature: string }>;
+    }
   >();
   let ownKeyCalls = 0;
   let from: number | null = null;
@@ -348,7 +355,7 @@ export function summariseUsage(events: readonly UsageEvent[]): UsageSummary {
 
     let a = byApp.get(e.app);
     if (!a) {
-      a = { ...blank(), app: e.app, providers: [], p: new Map() };
+      a = { ...blank(), app: e.app, providers: [], features: [], p: new Map(), f: new Map() };
       byApp.set(e.app, a);
     }
     add(a, e);
@@ -356,6 +363,11 @@ export function summariseUsage(events: readonly UsageEvent[]): UsageSummary {
     if (!ap) a.p.set(e.provider, (ap = { ...blank(), provider: e.provider, paid: e.paid }));
     if (e.paid) ap.paid = true;
     add(ap, e);
+    if (typeof e.feature === "string" && e.feature) {
+      let af = a.f.get(e.feature);
+      if (!af) a.f.set(e.feature, (af = { ...blank(), feature: e.feature }));
+      add(af, e);
+    }
   }
 
   const providers = busiest(
@@ -366,7 +378,11 @@ export function summariseUsage(events: readonly UsageEvent[]): UsageSummary {
     })),
   );
   const apps = busiest(
-    [...byApp.values()].map(({ p, ...a }) => ({ ...a, providers: busiest([...p.values()]) })),
+    [...byApp.values()].map(({ p, f, ...a }) => ({
+      ...a,
+      providers: busiest([...p.values()]),
+      features: busiest([...f.values()]),
+    })),
   );
   return { total, providers, apps, ownKeyCalls, from, to };
 }

@@ -202,3 +202,46 @@ test("usageDir: the variable wins, `off` writes nowhere, unset falls back to the
   assert.equal(fallback, existsSync(BOX_USAGE_DIR) ? BOX_USAGE_DIR : null);
   assert.equal(BOX_USAGE_DIR, "/opt/fleet/ai-usage");
 });
+
+test("a call says what it was for, and the summary groups each app's calls by it", async () => {
+  const seen = [];
+  setUsageSink((e) => seen.push(e));
+  await walkChain({ chain, env, feature: "law-translate" }, async (link) => {
+    if (link.model === "a") throw new LinkFailure(link, "groq/a: 429", { status: 429 });
+    return { text: "ok" };
+  });
+  assert.deepEqual(
+    seen.map((e) => [e.outcome, e.feature]),
+    [
+      ["refused", "law-translate"],
+      ["failed", "law-translate"],
+      ["served", "law-translate"],
+    ],
+  );
+  const unnamed = {
+    t: 9,
+    app: "DEMO",
+    provider: "groq",
+    model: "a",
+    outcome: "served",
+    paid: false,
+    byok: false,
+  };
+  const s = summariseUsage([...seen, unnamed, { ...unnamed, feature: "chat" }]);
+  const demo = s.apps.find((a) => a.app === "DEMO");
+  assert.deepEqual(
+    demo.features.map((f) => [f.feature, f.served, f.failed, f.refused]),
+    [
+      ["law-translate", 1, 1, 1],
+      ["chat", 1, 0, 0],
+    ],
+  );
+  assert.equal(demo.served, 3, "a call that named nothing still counts for its app");
+});
+
+test("no feature named, no feature written", async () => {
+  const seen = [];
+  setUsageSink((e) => seen.push(e));
+  await walkChain({ chain: [{ provider: groq, model: "b" }], env }, async () => ({ text: "ok" }));
+  assert.equal("feature" in seen[0], false);
+});

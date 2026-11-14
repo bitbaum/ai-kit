@@ -123,6 +123,10 @@ export interface ToolCall {
 
 export interface CompleteOptions {
   messages: ChatMessage[];
+  /** The app this call spends for and is logged under (WalkOptions.app). */
+  app?: string;
+  /** What this call is for, written to the usage log (WalkOptions.feature). */
+  feature?: string;
   /**
    * Links to try, in order. Defaults to `usableChain(freeChain())` — every free
    * provider that has a key in `env`.

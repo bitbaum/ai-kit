@@ -628,6 +628,9 @@ whether it was served, failed (status, kind) or refused by the spend rules,
 and the tokens and time when known. Never a prompt, an answer or a key.
 With the variable unset, `/opt/fleet/ai-usage` is used when it exists
 (`usageDir`, `BOX_USAGE_DIR`); `AI_USAGE_DIR=off` writes nowhere.
+Pass `feature` ("law-translate", "chat") to `walkChain`, `complete` or
+`transcribe` and the line says what the call was for; `summariseUsage`
+groups each app's calls by it (`apps[i].features`).
 
 ```ts
 import { readUsageDay, summariseUsage } from "@bitbaum/ai-kit";
