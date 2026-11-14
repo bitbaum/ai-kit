@@ -7,6 +7,10 @@ Application adoption and deployment evidence are tracked separately.
 
 ## Unreleased
 
+## 1.29.0
+
+- **What a call was for.** `WalkOptions.feature` (and `CompleteOptions.feature`, with `CompleteOptions.app` now typed too) is written to the usage log beside the app; `summariseUsage` lists each app's `features`, busiest first. On 14 Nov 2026 Solon spent Groq's whole free day before 09:10 UTC with nobody using any app, and the log could say which app but not what for. A call that names nothing still counts for its app.
+
 ## 1.28.0
 
 - **The usage log needs no per-app setup on a box.** 1.27.0 wrote only where `AI_USAGE_DIR` was exported, and apps whose launch script predates that variable wrote nothing: on 2026-11-13 the fleet picture listed two apps. `usageDir(env)` is `AI_USAGE_DIR` when set, otherwise `BOX_USAGE_DIR` (`/opt/fleet/ai-usage`) when that directory exists, otherwise none; `AI_USAGE_DIR=off` writes nowhere. `emitUsage` uses it. Both are exported.

@@ -56,6 +56,12 @@ export interface WalkOptions {
    * the provider's env prefix (withEnvPrefix), then AI_APP_ID.
    */
   app?: string;
+  /**
+   * What this call is for, in the app's own words ("law-translate",
+   * "chat"). Written to the usage log beside the app, so "what was it used
+   * up for" has an answer. Never a prompt or a person.
+   */
+  feature?: string;
   /** Input tokens this call will send, for the paid caps' token check. */
   estimateInputTokens?: number;
 }
@@ -129,6 +135,7 @@ export async function walkChain<T>(
     }
 
     const app = spendApp(link, options.app, env);
+    const tag = options.feature ? { feature: options.feature } : {};
     if (paidStopped && isPaidProvider(link.provider)) continue;
     const verdict = checkSpend(link, app, env, { estimateIn: options.estimateInputTokens });
     if (!verdict.ok) {
@@ -139,6 +146,7 @@ export async function walkChain<T>(
         usageEventFor(link, app, isPaidProvider(link.provider), {
           outcome: "refused",
           reason: verdict.reason,
+          ...tag,
         }),
         env,
       );
@@ -157,6 +165,7 @@ export async function walkChain<T>(
         usageEventFor(link, app, verdict.paid, {
           outcome: "served",
           ms: Date.now() - startedAt,
+          ...tag,
           ...(usage ? { inputTokens: usage.input, outputTokens: usage.output } : {}),
         }),
         env,
@@ -179,6 +188,7 @@ export async function walkChain<T>(
         usageEventFor(link, app, verdict.paid, {
           outcome: "failed",
           ms: Date.now() - startedAt,
+          ...tag,
           ...(failure.status !== undefined ? { status: failure.status } : {}),
           ...(failure.kind ? { kind: failure.kind } : {}),
         }),
